@@ -1,0 +1,125 @@
+// schema.prisma (Spesifik Tepsi/Kutu Seçimi İçin Güncellendi)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Mevcut Modeller (Karşı İlişkiler Eklenmişti) ---
+model TeslimatTuru {
+  id         Int       @id @default(autoincrement())
+  ad         String    @unique
+  kodu       String?
+  siparisler Siparis[]
+}
+
+model Sube {
+  id         Int       @id @default(autoincrement())
+  ad         String    @unique
+  kodu       String?
+  siparisler Siparis[]
+}
+
+model GonderenAliciTipi {
+  id         Int       @id @default(autoincrement())
+  ad         String    @unique
+  kodu       String?
+  siparisler Siparis[]
+}
+
+model Ambalaj {
+  id               Int             @id @default(autoincrement())
+  ad               String          @unique
+  kodu             String?
+  siparisKalemleri SiparisKalemi[]
+}
+
+model TepsiTava {
+  id               Int             @id @default(autoincrement())
+  ad               String          @unique
+  kodu             String?
+  siparisKalemleri SiparisKalemi[] // <<< EKLENDİ: Karşı ilişki
+}
+
+model Kutu {
+  id               Int             @id @default(autoincrement())
+  ad               String          @unique
+  kodu             String?
+  siparisKalemleri SiparisKalemi[] // <<< EKLENDİ: Karşı ilişki
+}
+
+model Urun {
+  id               Int             @id @default(autoincrement())
+  ad               String          @unique
+  kodu             String?
+  fiyatlar         Fiyat[]
+  siparisKalemleri SiparisKalemi[]
+}
+
+model Fiyat {
+  id           Int      @id @default(autoincrement())
+  urunId       Int
+  urun         Urun     @relation(fields: [urunId], references: [id], onDelete: Cascade)
+  fiyat        Float
+  gecerliTarih DateTime @db.Date
+  createdAt    DateTime @default(now())
+
+  @@unique([urunId, gecerliTarih])
+}
+
+
+model Siparis {
+  id              Int                @id @default(autoincrement())
+  tarih           DateTime           @db.Date
+  teslimatTuruId  Int
+  subeId          Int?
+  gonderenTipiId  Int?
+  gonderenAdi     String
+  gonderenTel     String
+  aliciAdi        String?
+  aliciTel        String?
+  adres           String?
+  aciklama        String?
+  gorunecekAd     String?
+  onaylandiMi     Boolean            @default(false) // <<< YENİ ALAN: Onay durumu, varsayılan false
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  // İlişkiler (Aynı kalır)
+  teslimatTuru    TeslimatTuru       @relation(fields: [teslimatTuruId], references: [id])
+  sube            Sube?              @relation(fields: [subeId], references: [id])
+  gonderenAliciTipi GonderenAliciTipi? @relation(fields: [gonderenTipiId], references: [id])
+  kalemler        SiparisKalemi[]
+}
+
+model SiparisKalemi {
+  id        Int    @id @default(autoincrement())
+  siparisId Int
+  ambalajId Int // Ana ambalaj tipi ID'si (Kutu, Tepsi/Tava, Özel)
+  urunId    Int
+  miktar    Float
+  birim     String
+
+  // <<< YENİ ALANLAR >>>
+  // Sadece ana ambalaj "Tepsi/Tava" ise doldurulacak
+  tepsiTavaId Int?
+  // Sadece ana ambalaj "Kutu" ise doldurulacak
+  kutuId      Int?
+
+  // İlişkiler
+  siparis Siparis @relation(fields: [siparisId], references: [id], onDelete: Cascade)
+  ambalaj Ambalaj @relation(fields: [ambalajId], references: [id]) // Ana ambalaj tipi
+  urun    Urun    @relation(fields: [urunId], references: [id])
+
+  // <<< YENİ İLİŞKİLER >>>
+  tepsiTava TepsiTava? @relation(fields: [tepsiTavaId], references: [id]) // Opsiyonel ilişki
+  kutu      Kutu?      @relation(fields: [kutuId], references: [id]) // Opsiyonel ilişki
+
+  @@index([siparisId])
+  @@index([tepsiTavaId]) // Opsiyonel indexler
+  @@index([kutuId]) // Opsiyonel indexler
+}
