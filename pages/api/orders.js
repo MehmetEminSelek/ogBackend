@@ -16,27 +16,15 @@ export default async function handler(req, res) {
       console.log(`GET /api/orders isteği alındı. Parametreler:`, req.query);
 
       const whereClause = {};
-
-      if (status === 'pending') {
-        whereClause.onaylandiMi = false;
-      } else if (status === 'approved') {
-        whereClause.onaylandiMi = true;
-      }
+      if (status === 'pending') { whereClause.onaylandiMi = false; }
+      else if (status === 'approved') { whereClause.onaylandiMi = true; }
 
       if (startDate && endDate) {
         try {
-          const start = new Date(startDate);
-          start.setHours(0, 0, 0, 0);
-          const end = new Date(endDate);
-          end.setHours(23, 59, 59, 999);
-
-          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-            throw new Error('Geçersiz tarih formatı.');
-          }
-          whereClause.tarih = {
-            gte: start,
-            lte: end,
-          };
+          const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+          const end = new Date(endDate); end.setHours(23, 59, 59, 999);
+          if (isNaN(start.getTime()) || isNaN(end.getTime())) { throw new Error('Geçersiz tarih formatı.'); }
+          whereClause.tarih = { gte: start, lte: end };
         } catch (dateError) {
           console.error("Tarih aralığı hatası:", dateError);
           return res.status(400).json({ message: 'Geçersiz tarih formatı. YYYY-MM-DD kullanın.' });
@@ -52,7 +40,12 @@ export default async function handler(req, res) {
           gonderenAliciTipi: { select: { ad: true } },
           kalemler: {
             orderBy: { id: 'asc' },
-            include: {
+            // birimFiyat alanı select'ten kaldırıldı
+            select: {
+              id: true,
+              miktar: true,
+              birim: true,
+              // birimFiyat: true, // <<< KALDIRILDI
               urun: { select: { id: true, ad: true } },
               ambalaj: { select: { id: true, ad: true } },
               kutu: { select: { id: true, ad: true } },
