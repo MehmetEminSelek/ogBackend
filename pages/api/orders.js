@@ -40,12 +40,12 @@ export default async function handler(req, res) {
           gonderenAliciTipi: { select: { ad: true } },
           kalemler: {
             orderBy: { id: 'asc' },
-            // birimFiyat alanı select'ten kaldırıldı
+            //birimFiyat alanı select'ten kaldırıldı
             select: {
               id: true,
               miktar: true,
               birim: true,
-              // birimFiyat: true, // <<< KALDIRILDI
+              birimFiyat: true, // <<< KALDIRILDI
               urun: { select: { id: true, ad: true } },
               ambalaj: { select: { id: true, ad: true } },
               kutu: { select: { id: true, ad: true } },

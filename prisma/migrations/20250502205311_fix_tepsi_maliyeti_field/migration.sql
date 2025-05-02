@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "Fiyat" ALTER COLUMN "bitisTarihi" DROP DEFAULT,
+ALTER COLUMN "bitisTarihi" SET DATA TYPE DATE;
+
+-- AlterTable
+ALTER TABLE "Siparis" ADD COLUMN     "digerHizmetTutari" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "kargoUcreti" DOUBLE PRECISION DEFAULT 0,
+ADD COLUMN     "toplamTepsiMaliyeti" DOUBLE PRECISION DEFAULT 0;

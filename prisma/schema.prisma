@@ -66,14 +66,15 @@ model Fiyat {
   id            Int       @id @default(autoincrement())
   urunId        Int
   urun          Urun      @relation(fields: [urunId], references: [id], onDelete: Cascade)
-  fiyat         Float     // KG veya Adet fiyatı
+  fiyat         Float
   birim         String    // "KG", "Adet" vb.
   gecerliTarih  DateTime  @db.Date // Başlangıç tarihi
-  bitisTarihi   DateTime?  @default(now()) // Bitiş tarihi
+  bitisTarihi   DateTime? @db.Date // <<< TEKRAR EKLENDİ: Bitiş tarihi (null olabilir)
   createdAt     DateTime  @default(now())
 
-  @@unique([urunId, birim, gecerliTarih])
+  @@unique([urunId, birim, gecerliTarih]) // Başlangıç tarihi hala unique olmalı
 }
+
 
 // --- Ana Modeller ---
 model Siparis {
@@ -89,9 +90,12 @@ model Siparis {
   adres             String?
   aciklama          String?
   gorunecekAd       String?
+  birimFiyat        Float?             @default(0)
   onaylandiMi       Boolean            @default(false)
-  // kargoUcreti alanı kaldırıldı
-  // digerHizmetTutari alanı kaldırıldı
+  kargoUcreti       Float?             @default(0)
+  digerHizmetTutari Float?             @default(0)
+  toplamTepsiMaliyeti Float?           @default(0) // <<< BU SATIRIN OLDUĞUNDAN EMİN OL
+  hazirlanmaDurumu  String             @default("Bekliyor") // <<< YENİ ALAN: "Bekliyor", "Hazırlanıyor", "Hazırlandı"
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -108,6 +112,7 @@ model SiparisKalemi {
   urunId        Int
   miktar        Float
   birim         String
+  birimFiyat    Float?
   tepsiTavaId   Int?
   kutuId        Int?
 
