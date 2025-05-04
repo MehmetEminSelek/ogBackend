@@ -1,0 +1,60 @@
+# Stage 1: Bağımlılıkları yükle ve build yap
+FROM node:20-alpine AS builder
+# Set working directory
+WORKDIR /app
+
+# Ortam değişkenlerini ayarla (Prisma için)
+ENV DATABASE_URL="postgresql://user:password@db:5432/dbname?schema=public"
+# Not: Yukarıdaki DATABASE_URL sadece build aşaması içindir,
+# gerçek değer docker-compose.yml'den veya .env dosyasından gelecek.
+
+# package.json ve lock dosyasını kopyala
+COPY package.json yarn.lock* package-lock.json* ./
+
+# Sadece production bağımlılıklarını yükle (daha küçük imaj için)
+# Eğer yarn kullanıyorsan: RUN yarn install --frozen-lockfile --production
+RUN npm install --omit=dev --legacy-peer-deps
+
+# Prisma schema'yı kopyala
+COPY prisma ./prisma/
+
+# Prisma Client'ı generate et
+# Bu adım, build sırasında veritabanına erişim gerektirmez
+RUN npx prisma generate
+
+# Tüm proje kodunu kopyala
+COPY . .
+
+# Next.js uygulamasını build et
+RUN npm run build
+# Eğer yarn kullanıyorsan: RUN yarn build
+
+# Stage 2: Production imajını oluştur
+FROM node:18-alpine AS runner
+WORKDIR /app
+
+# Ortam değişkeni (Next.js production'da bunu kullanır)
+ENV NODE_ENV=production
+# DATABASE_URL burada tekrar ayarlanmayacak, docker-compose'dan gelecek
+
+# Sadece production bağımlılıklarını kopyala
+COPY --from=builder /app/node_modules ./node_modules
+# Build edilmiş uygulamayı kopyala
+COPY --from=builder /app/.next ./.next
+# Public klasörünü kopyala
+COPY --from=builder /app/public ./public
+# package.json'ı kopyala (start script'i için)
+COPY --from=builder /app/package.json ./package.json
+# Prisma schema ve generate edilmiş client'ı kopyala
+COPY --from=builder /app/prisma ./prisma/
+COPY --from=builder /app/node_modules/.prisma/client ./node_modules/.prisma/client
+
+# Uygulamanın çalışacağı portu aç
+EXPOSE 3000
+
+# Uygulamayı başlatma komutu
+# Önce migration'ları uygula, sonra uygulamayı başlat
+# Not: `prisma migrate deploy` production ortamı içindir.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# Eğer yarn kullanıyorsan: CMD ["sh", "-c", "npx prisma migrate deploy && yarn start"]
+

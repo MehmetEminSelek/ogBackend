@@ -103,6 +103,7 @@ model Siparis {
   sube              Sube?              @relation(fields: [subeId], references: [id])
   gonderenAliciTipi GonderenAliciTipi? @relation(fields: [gonderenTipiId], references: [id])
   kalemler          SiparisKalemi[]
+  odemeler          Odeme[] 
 }
 
 model SiparisKalemi {
@@ -127,3 +128,15 @@ model SiparisKalemi {
   @@index([kutuId])
 }
 
+model Odeme {
+  id           Int       @id @default(autoincrement())
+  siparisId    Int       // Hangi siparişe ait
+  tutar        Float     // Ödenen tutar
+  odemeTarihi  DateTime  @default(now()) @db.Timestamp(6) // Ödemenin yapıldığı tarih/saat
+  odemeYontemi String?   // Opsiyonel: "Nakit", "Kredi Kartı", "Havale" vb.
+  aciklama     String?   // Opsiyonel: Ödeme ile ilgili not
+
+  siparis      Siparis   @relation(fields: [siparisId], references: [id], onDelete: Cascade) // Sipariş silinirse ödemeler de silinsin
+
+  @@index([siparisId]) // Siparişe göre ödemeleri hızlı bulmak için
+}
