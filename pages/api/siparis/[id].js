@@ -18,6 +18,56 @@ async function getTepsiTavaPrice(tx, tepsiTavaId) {
     return tepsi?.fiyat || 0;
 }
 
+// Helper: Stoktan düşüm fonksiyonu
+async function dusStokFromRecete(tx, siparisId) {
+    // 1. Sipariş ve kalemlerini çek
+    const siparis = await tx.siparis.findUnique({
+        where: { id: siparisId },
+        include: { kalemler: { include: { urun: true } } }
+    });
+    if (!siparis) return;
+    const OP004 = await tx.operasyonBirimi.findUnique({ where: { kod: 'OP004' } });
+    if (!OP004) throw new Error('Üretim birimi bulunamadı!');
+
+    // 2. Daha önce stok düşümü yapılmış mı kontrolü (ör: bir log tablosu yoksa, siparişin bir alanı ile işaretlenebilir)
+    if (siparis.aciklama && siparis.aciklama.includes('[STOK DÜŞÜLDÜ]')) return;
+
+    // 3. Her kalem için reçeteyi bul ve stoktan düş
+    for (const kalem of siparis.kalemler) {
+        // Ürünle ilişkili reçeteyi bul
+        const recipe = await tx.recipe.findFirst({
+            where: { urunId: kalem.urun.id },
+            include: { ingredients: true }
+        });
+        if (!recipe) continue;
+        // Sipariş miktarını gram cinsine çevir
+        const miktar = kalem.birim.toLowerCase() === 'gram' ? kalem.miktar : kalem.miktar * 1000;
+        for (const ing of recipe.ingredients) {
+            // Hammadde mi, yarı mamul mü?
+            const hammadde = await tx.hammadde.findUnique({ where: { kod: ing.stokKod } });
+            const yariMamul = !hammadde ? await tx.yariMamul.findUnique({ where: { kod: ing.stokKod } }) : null;
+            const dusulecek = ing.miktarGram * miktar / 1000; // Reçete miktarı 1kg için, sipariş miktarı kg/gram
+            if (hammadde) {
+                const stok = await tx.stok.findFirst({ where: { hammaddeId: hammadde.id, operasyonBirimiId: OP004.id } });
+                if (stok && stok.miktarGram >= dusulecek) {
+                    await tx.stok.update({ where: { id: stok.id }, data: { miktarGram: { decrement: dusulecek } } });
+                } else {
+                    console.error(`Yetersiz stok: ${hammadde.ad} (${ing.stokKod})`);
+                }
+            } else if (yariMamul) {
+                const stok = await tx.stok.findFirst({ where: { yariMamulId: yariMamul.id, operasyonBirimiId: OP004.id } });
+                if (stok && stok.miktarGram >= dusulecek) {
+                    await tx.stok.update({ where: { id: stok.id }, data: { miktarGram: { decrement: dusulecek } } });
+                } else {
+                    console.error(`Yetersiz yarı mamul stok: ${yariMamul.ad} (${ing.stokKod})`);
+                }
+            }
+        }
+    }
+    // 4. Sipariş açıklamasına işaret ekle
+    await tx.siparis.update({ where: { id: siparisId }, data: { aciklama: (siparis.aciklama || '') + ' [STOK DÜŞÜLDÜ]' } });
+}
+
 export default async function handler(req, res) {
     // CORS, OPTIONS, ID kontrolü...
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -183,6 +233,8 @@ export default async function handler(req, res) {
                 if (isPreparationUpdate) {
                     console.log(`Sipariş ${id} hazırlanma durumu güncelleniyor: ${hazirlanmaDurumu}`);
                     updateDataSiparis.hazirlanmaDurumu = hazirlanmaDurumu;
+                    // Stoktan düşüm
+                    await dusStokFromRecete(tx, id);
                 }
                 if (isExtraChargesUpdate) {
                     console.log(`Sipariş ${id} kargo/diğer ücret güncelleniyor...`);

@@ -27,6 +27,8 @@ export default async function handler(req, res) {
         urunler,
         tepsiTavalar,
         kutular,
+        hammaddeler,
+        yariMamuller
       ] = await Promise.all([
         prisma.teslimatTuru.findMany({ orderBy: { ad: 'asc' } }),
         prisma.sube.findMany({ orderBy: { ad: 'asc' } }),
@@ -35,6 +37,8 @@ export default async function handler(req, res) {
         prisma.urun.findMany({ orderBy: { ad: 'asc' } }),
         prisma.tepsiTava.findMany({ orderBy: { ad: 'asc' } }),
         prisma.kutu.findMany({ orderBy: { ad: 'asc' } }),
+        prisma.hammadde.findMany({ orderBy: { ad: 'asc' } }),
+        prisma.yariMamul.findMany({ orderBy: { ad: 'asc' } })
       ]);
 
       console.log('Veritabanından dropdown verileri başarıyla çekildi.');
@@ -48,6 +52,8 @@ export default async function handler(req, res) {
         urunler: urunler.map(item => ({ id: item.id, ad: item.ad })),
         tepsiTavalar: tepsiTavalar.map(item => ({ id: item.id, ad: item.ad })),
         kutular: kutular.map(item => ({ id: item.id, ad: item.ad })),
+        hammaddeler: hammaddeler.map(item => ({ kod: item.kod, ad: item.ad })),
+        yariMamuller: yariMamuller.map(item => ({ kod: item.kod, ad: item.ad }))
       };
 
       // Başarılı yanıtı gönder

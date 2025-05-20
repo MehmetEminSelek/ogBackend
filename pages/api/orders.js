@@ -48,7 +48,10 @@ export default async function handler(req, res) {
               urun: { select: { id: true, ad: true } },
               ambalaj: { select: { id: true, ad: true } },
               kutu: { select: { id: true, ad: true } },
-              tepsiTava: { select: { id: true, ad: true } }
+              tepsiTava: { select: { id: true, ad: true, fiyat: true } },
+              ambalajId: true,
+              kutuId: true,
+              tepsiTavaId: true
             }
           }
         }

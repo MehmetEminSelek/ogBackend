@@ -1,74 +1,131 @@
-// pages/api/prices.js
-import prisma from '../../lib/prisma'; // Prisma Client import yolu
+// pages/api/fiyatlar.js
+// Tüm fiyat kayıtlarını getirir (ürün bilgisiyle birlikte)
+
+import prisma from '../../lib/prisma'; // Prisma Client import yolu (kendi yapınıza göre düzeltin)
+import { Prisma } from '@prisma/client';
 
 export default async function handler(req, res) {
-  // CORS ve OPTIONS Handling (dropdown.js'deki gibi)
+  // CORS ve OPTIONS Handling
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS'); // Bu endpoint sadece GET ve OPTIONS destekler
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // Sadece GET isteklerini kabul et
-  if (req.method !== 'GET') {
-    res.setHeader('Allow', ['GET', 'OPTIONS']);
-    return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
-  }
+  // Sadece GET isteklerini işle
+  if (req.method === 'GET') {
+    try {
+      // 1. Get the latest gecerliTarih for each (urunId, birim)
+      const latestPrices = await prisma.fiyat.groupBy({
+        by: ['urunId', 'birim'],
+        _max: { gecerliTarih: true }
+      });
 
-  // Query parametrelerini al (frontend'den gelen 'product' ve 'date')
-  const { product: urunAdi, date: tarihStr } = req.query;
+      // 2. Fetch the full price record for each group
+      const fiyatlar = await Promise.all(
+        latestPrices.map(async (item) => {
+          return prisma.fiyat.findFirst({
+            where: {
+              urunId: item.urunId,
+              birim: item.birim,
+              gecerliTarih: item._max.gecerliTarih
+            },
+            include: {
+              urun: {
+                select: {
+                  id: true,
+                  ad: true,
+                  kodu: true
+                }
+              }
+            }
+          });
+        })
+      );
 
-  // Parametreler eksikse hata döndür
-  if (!urunAdi || !tarihStr) {
-    return res.status(400).json({ message: 'Eksik parametre: product ve date gereklidir.' });
-  }
-
-  try {
-    // Tarihi Date nesnesine çevir (saat bilgisini sıfırla)
-    const gecerlilikTarihi = new Date(tarihStr);
-    gecerlilikTarihi.setHours(0, 0, 0, 0); // Sadece tarih kısmı önemli
-
-    // 1. Ürünü adına göre bul
-    const urun = await prisma.urun.findUnique({
-      where: { ad: urunAdi },
-    });
-
-    if (!urun) {
-      return res.status(404).json({ message: `Ürün bulunamadı: ${urunAdi}` });
+      return res.status(200).json(fiyatlar.filter(Boolean));
+    } catch (error) {
+      console.error('❌ GET /api/fiyatlar HATA:', error);
+      return res.status(500).json({ message: 'Fiyatlar listelenirken hata oluştu.', error: error.message });
     }
+  }
 
-    // 2. Ürünün ID'sini kullanarak, verilen tarihte veya öncesinde geçerli olan
-    //    en son fiyatı bul
-    const fiyatKaydi = await prisma.fiyat.findFirst({
-      where: {
-        urunId: urun.id,
-        gecerliTarih: {
-          lte: gecerlilikTarihi, // Geçerli tarihi, istenen tarihe eşit veya ondan küçük olanlar
+  // YENİ: Fiyat ekleme (POST)
+  if (req.method === 'POST') {
+    try {
+      const { urunId, birim, fiyat, gecerliTarih, bitisTarihi } = req.body;
+      if (!urunId || !birim || typeof fiyat !== 'number' || !gecerliTarih) {
+        return res.status(400).json({ message: 'urunId, birim, fiyat (number), gecerliTarih zorunludur.' });
+      }
+      const created = await prisma.fiyat.create({
+        data: {
+          urunId: parseInt(urunId),
+          birim,
+          fiyat,
+          gecerliTarih: new Date(gecerliTarih),
+          bitisTarihi: bitisTarihi ? new Date(bitisTarihi) : null
         },
-      },
-      orderBy: {
-        gecerliTarih: 'desc', // En yakın (en son) geçerli tarihi bulmak için ters sırala
-      },
-    });
-
-    if (!fiyatKaydi) {
-      // Belirtilen tarih için geçerli fiyat bulunamadı
-      // Varsayılan olarak 0 dönebilir veya hata verebilirsiniz
-      console.warn(`'${urunAdi}' için ${tarihStr} tarihinde geçerli fiyat bulunamadı.`);
-      return res.status(200).json({ price: 0 }); // Fiyat yoksa 0 dön (frontend bunu bekliyor gibi)
-      // veya return res.status(404).json({ message: 'Belirtilen tarih için fiyat bulunamadı.' });
+        include: {
+          urun: {
+            select: { id: true, ad: true, kodu: true }
+          }
+        }
+      });
+      return res.status(201).json(created);
+    } catch (error) {
+      console.error('❌ POST /api/fiyatlar HATA:', error);
+      return res.status(500).json({ message: 'Fiyat eklenirken hata oluştu.', error: error.message });
     }
-
-    // Fiyat bulundu, frontend'e gönder
-    console.log(`Fiyat bulundu: ${fiyatKaydi.fiyat} (Geçerli Tarih: ${fiyatKaydi.gecerliTarih})`);
-    return res.status(200).json({ price: fiyatKaydi.fiyat });
-
-  } catch (error) {
-    console.error('❌ /api/prices HATA:', error);
-    return res.status(500).json({
-      message: 'Fiyat alınırken bir sunucu hatası oluştu.',
-      error: error.message,
-    });
   }
+
+  // YENİ: Tüm fiyat geçmişini getir (opsiyonel urunId ve birim ile)
+  if (req.method === 'GET' && req.query.all === 'true') {
+    try {
+      const where = {};
+      if (req.query.urunId) where.urunId = parseInt(req.query.urunId);
+      if (req.query.birim) where.birim = req.query.birim;
+      const fiyatlar = await prisma.fiyat.findMany({
+        where,
+        include: { urun: { select: { id: true, ad: true, kodu: true } } },
+        orderBy: { gecerliTarih: 'desc' }
+      });
+      return res.status(200).json(fiyatlar);
+    } catch (error) {
+      console.error('❌ GET /api/fiyatlar?all=true HATA:', error);
+      return res.status(500).json({ message: 'Fiyat geçmişi listelenirken hata oluştu.', error: error.message });
+    }
+  }
+
+  // GET /api/fiyatlar/active?urunId=...&birim=...&date=...
+  if (req.method === 'GET' && req.query.active === 'true') {
+    try {
+      const { urunId, birim, date } = req.query;
+      if (!urunId || !birim || !date) {
+        return res.status(400).json({ message: 'urunId, birim ve date zorunludur.' });
+      }
+      const targetDate = new Date(date);
+      const fiyat = await prisma.fiyat.findFirst({
+        where: {
+          urunId: parseInt(urunId),
+          birim,
+          gecerliTarih: { lte: targetDate },
+          OR: [
+            { bitisTarihi: null },
+            { bitisTarihi: { gt: targetDate } }
+          ]
+        },
+        orderBy: { gecerliTarih: 'desc' }
+      });
+      if (!fiyat) return res.status(404).json({ message: 'Belirtilen tarihte geçerli fiyat bulunamadı.' });
+      return res.status(200).json(fiyat);
+    } catch (error) {
+      return res.status(500).json({ message: 'Aktif fiyat sorgulanırken hata oluştu.', error: error.message });
+    }
+  }
+
+  // Desteklenmeyen metot
+  console.log(`Desteklenmeyen metot: ${req.method} for /api/fiyatlar`);
+  res.setHeader('Allow', ['GET', 'OPTIONS']);
+  return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
 }

@@ -56,10 +56,11 @@ model Kutu {
 model Urun {
   id               Int             @id @default(autoincrement())
   ad               String          @unique
-  kodu             String?
+  kodu             String?         @unique
   // excelKodu alanı kaldırıldı
   fiyatlar         Fiyat[]
   siparisKalemleri SiparisKalemi[]
+  recipes          Recipe[]        // Yeni eklenen: Bu ürünün reçeteleri
 }
 
 model Fiyat {
@@ -139,4 +140,104 @@ model Odeme {
   siparis      Siparis   @relation(fields: [siparisId], references: [id], onDelete: Cascade) // Sipariş silinirse ödemeler de silinsin
 
   @@index([siparisId]) // Siparişe göre ödemeleri hızlı bulmak için
+}
+
+model OperasyonBirimi {
+  id      Int    @id @default(autoincrement())
+  ad      String
+  kod     String @unique
+  stoklar Stok[]
+}
+
+model Hammadde {
+  id      Int    @id @default(autoincrement())
+  ad      String
+  kod     String @unique
+  stoklar Stok[]
+}
+
+model YariMamul {
+  id      Int    @id @default(autoincrement())
+  ad      String
+  kod     String @unique
+  stoklar Stok[]
+}
+
+model Stok {
+  id                Int    @id @default(autoincrement())
+  hammaddeId        Int?
+  yariMamulId       Int?
+  operasyonBirimiId Int
+  miktarGram        Float
+  minimumMiktarGram Float? @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  hammadde          Hammadde? @relation(fields: [hammaddeId], references: [id])
+  yariMamul         YariMamul? @relation(fields: [yariMamulId], references: [id])
+  operasyonBirimi   OperasyonBirimi @relation(fields: [operasyonBirimiId], references: [id])
+
+  kaynakOlduguTransferler StokTransfer[] @relation("KaynakStok")
+  hedefOlduguTransferler  StokTransfer[] @relation("HedefStok")
+  hareketler              StokHareket[]
+
+  @@unique([hammaddeId, operasyonBirimiId])
+  @@unique([yariMamulId, operasyonBirimiId])
+}
+
+model Recipe {
+  id          Int                 @id @default(autoincrement())
+  name        String              // Reçete adı (örn: FISTIKLI KURABİYE)
+  urunId      Int?                // İlgili ürün (varsa)
+  urun        Urun?               @relation(fields: [urunId], references: [id])
+  ingredients RecipeIngredient[]  // İçerik listesi
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model RecipeIngredient {
+  id         Int      @id @default(autoincrement())
+  recipeId   Int
+  stokKod    String   // Hammadde veya Yarı Mamul kodu
+  miktarGram Float
+  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+}
+
+model StokTransfer {
+  id           Int      @id @default(autoincrement())
+  kaynakStokId Int
+  hedefStokId  Int
+  miktarGram   Float
+  aciklama     String?
+  createdAt    DateTime @default(now())
+  userId       Int?
+
+  kaynakStok   Stok     @relation("KaynakStok", fields: [kaynakStokId], references: [id])
+  hedefStok    Stok     @relation("HedefStok", fields: [hedefStokId], references: [id])
+  user         User?    @relation(fields: [userId], references: [id])
+}
+
+model StokHareket {
+  id         Int      @id @default(autoincrement())
+  stokId     Int
+  tip        String   // 'giris', 'cikis', 'transfer'
+  miktarGram Float
+  aciklama   String?
+  createdAt  DateTime @default(now())
+  userId     Int?
+
+  stok       Stok     @relation(fields: [stokId], references: [id])
+  user       User?    @relation(fields: [userId], references: [id])
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  ad           String
+  email        String   @unique
+  passwordHash String
+  role         String   // 'admin', 'user', etc.
+  createdAt    DateTime @default(now())
+
+  hareketler   StokHareket[]
+  transferler  StokTransfer[]
 }

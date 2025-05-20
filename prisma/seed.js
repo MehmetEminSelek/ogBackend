@@ -1,5 +1,7 @@
-// import { PrismaClient, Prisma } from '@prisma/client'; // Prisma importunu ekleyelim
-// const prisma = new PrismaClient();
+import 'dotenv/config';
+import { PrismaClient, Prisma } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+const prisma = new PrismaClient();
 
 // async function main() {
 //   console.log('Seeding started...'); // Başlangıç logu
@@ -222,8 +224,6 @@
 
 
 // seed.js (20 Dummy Sipariş Eklendi)
-const { PrismaClient, Prisma } = require('@prisma/client');
-const prisma = new PrismaClient();
 
 // Yardımcı fonksiyon: Belirli bir tarih için ürün fiyatını bulur
 async function getPriceForDate(urunId, birim, tarih) { // tx kaldırıldı, doğrudan prisma kullanılacak
@@ -271,11 +271,303 @@ function getRandomDate() {
   return randomDate;
 }
 
+// --- STOCK MANAGEMENT SEED ---
+async function seedStockManagement(prisma) {
+  // 1. Operasyon Birimleri
+  const operasyonBirimleri = [
+    { ad: 'Ana Depo', kod: 'OP001' },
+    { ad: 'Cep Depo', kod: 'OP002' },
+    { ad: 'Sevkiyat', kod: 'OP003' },
+    { ad: 'Üretim', kod: 'OP004' }
+  ];
+  for (const op of operasyonBirimleri) {
+    await prisma.operasyonBirimi.upsert({
+      where: { kod: op.kod },
+      update: { ad: op.ad },
+      create: op
+    });
+  }
+  const uretimBirim = await prisma.operasyonBirimi.findUnique({ where: { kod: 'OP004' } });
+
+  // 2. Hammaddeler
+  const hammaddeler = [
+    { ad: 'ANTEP PEYNİRİ', kod: 'HM001' },
+    { ad: 'CEVİZ', kod: 'HM002' },
+    { ad: 'GLİKOZ', kod: 'HM003' },
+    { ad: 'IRMIK NO:0', kod: 'HM004' },
+    { ad: 'IRMIK NO:3', kod: 'HM005' },
+    { ad: 'İÇ FISTIK', kod: 'HM006' },
+    { ad: 'KADAYIF', kod: 'HM007' },
+    { ad: 'KARAKOYUNLU UN', kod: 'HM008' },
+    { ad: 'LİMON', kod: 'HM009' },
+    { ad: 'MAYDANOZ', kod: 'HM010' },
+    { ad: 'NİŞASTA', kod: 'HM011' },
+    { ad: 'SADE YAĞ', kod: 'HM012' },
+    { ad: 'SODA GR', kod: 'HM013' },
+    { ad: 'SU', kod: 'HM014' },
+    { ad: 'SÜT', kod: 'HM015' },
+    { ad: 'TEKSİN UN', kod: 'HM016' },
+    { ad: 'TOZ ŞEKER', kod: 'HM017' },
+    { ad: 'TUZ', kod: 'HM018' },
+    { ad: 'YOĞURT', kod: 'HM019' },
+    { ad: 'YUMURTA', kod: 'HM020' }
+  ];
+  for (const hm of hammaddeler) {
+    const h = await prisma.hammadde.upsert({
+      where: { kod: hm.kod },
+      update: { ad: hm.ad },
+      create: hm
+    });
+    await prisma.stok.upsert({
+      where: { hammaddeId_operasyonBirimiId: { hammaddeId: h.id, operasyonBirimiId: uretimBirim.id } },
+      update: { miktarGram: 1000000 },
+      create: { hammaddeId: h.id, operasyonBirimiId: uretimBirim.id, miktarGram: 1000000 }
+    });
+  }
+  // 3. Yarı Mamuller
+  const yariMamuller = [
+    { ad: 'HAMUR (YM)', kod: 'YM001' },
+    { ad: 'KAYMAK (YM)', kod: 'YM002' },
+    { ad: 'ŞERBET (YM)', kod: 'YM003' }
+  ];
+  for (const ym of yariMamuller) {
+    const y = await prisma.yariMamul.upsert({
+      where: { kod: ym.kod },
+      update: { ad: ym.ad },
+      create: ym
+    });
+    await prisma.stok.upsert({
+      where: { yariMamulId_operasyonBirimiId: { yariMamulId: y.id, operasyonBirimiId: uretimBirim.id } },
+      update: { miktarGram: 1000000 },
+      create: { yariMamulId: y.id, operasyonBirimiId: uretimBirim.id, miktarGram: 1000000 }
+    });
+  }
+  console.log('Stok yönetimi için başlangıç verileri eklendi.');
+}
+
+// --- REÇETE SEED ---
+async function seedReceteler(prisma) {
+  // Önce tüm reçeteleri sil
+  await prisma.recipeIngredient.deleteMany();
+  await prisma.recipe.deleteMany();
+
+  // Genişletilmiş reçete listesi (örnek, eksik olanları ekle)
+  const receteler = [
+    // PEYNİRLİ SU BÖREĞİ (UR)
+    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM012', miktarGram: 62.81 },
+    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'YM001', miktarGram: 509.26 },
+    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM001', miktarGram: 421.92 },
+    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM010', miktarGram: 6.03 },
+    // EZME (UR)
+    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM006', miktarGram: 361.86 },
+    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM017', miktarGram: 477.11 },
+    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM014', miktarGram: 285.55 },
+    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM003', miktarGram: 94.52 },
+    // FISTIKLI KURABİYE (UR)
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM004', miktarGram: 193 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM017', miktarGram: 193 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM012', miktarGram: 193 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM006', miktarGram: 274.95 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM019', miktarGram: 96.77 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM013', miktarGram: 9.68 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM008', miktarGram: 193 },
+    // SADE KURABİYE (UR)
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM008', miktarGram: 193 },
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM005', miktarGram: 193 },
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM017', miktarGram: 193 },
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM012', miktarGram: 193 },
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM019', miktarGram: 96.77 },
+    { urunAd: 'Sade Kurabiye', stokKod: 'HM013', miktarGram: 9.68 },
+    // HAMUR (YM) - Yarı Mamul
+    { urunAd: 'Hamur', stokKod: 'HM008', miktarGram: 339 },
+    { urunAd: 'Hamur', stokKod: 'HM016', miktarGram: 222 },
+    { urunAd: 'Hamur', stokKod: 'HM015', miktarGram: 185 },
+    { urunAd: 'Hamur', stokKod: 'HM018', miktarGram: 165 },
+    { urunAd: 'Hamur', stokKod: 'HM011', miktarGram: 9 },
+    // ŞERBET (YM) - Yarı Mamul
+    { urunAd: 'Şerbet', stokKod: 'HM017', miktarGram: 848.42 },
+    { urunAd: 'Şerbet', stokKod: 'HM014', miktarGram: 151.58 },
+    { urunAd: 'Şerbet', stokKod: 'HM002', miktarGram: 2 },
+    // KAYMAK (YM) - Yarı Mamul
+    { urunAd: 'Kaymak', stokKod: 'HM004', miktarGram: 98.957 },
+    { urunAd: 'Kaymak', stokKod: 'HM020', miktarGram: 901.043 },
+    // DİĞER ÜRÜNLERİN REÇETELERİ (örnekler, eksik olanları ekle)
+    { urunAd: 'Cevizli Bülbül Yuvası', stokKod: 'HM021', miktarGram: 200 },
+    { urunAd: 'Fıstıklı Bülbül Yuvası', stokKod: 'HM022', miktarGram: 210 },
+    { urunAd: 'Fıstıklı Şöbiyet', stokKod: 'HM023', miktarGram: 220 },
+    { urunAd: 'Fıstıklı Dolama', stokKod: 'HM024', miktarGram: 230 },
+    { urunAd: 'Fıstıklı Eski Usûl Dolama', stokKod: 'HM025', miktarGram: 240 },
+    { urunAd: 'Fıstıklı Havuç Dilimi Baklava', stokKod: 'HM026', miktarGram: 250 },
+    { urunAd: 'Fıstıklı Kuru Baklava', stokKod: 'HM027', miktarGram: 260 },
+    { urunAd: 'Fıstıklı Midye', stokKod: 'HM028', miktarGram: 270 },
+    { urunAd: 'Fıstıklı Özel Kare Baklava', stokKod: 'HM029', miktarGram: 280 },
+    { urunAd: 'Fıstıklı Özel Şöbiyet', stokKod: 'HM030', miktarGram: 290 },
+    { urunAd: 'Fıstıklı Yaprak Şöbiyet', stokKod: 'HM031', miktarGram: 300 },
+    { urunAd: 'Fıstıklı Yaş Baklava', stokKod: 'HM032', miktarGram: 310 },
+    { urunAd: 'Karışık Baklava', stokKod: 'HM033', miktarGram: 320 },
+    { urunAd: 'Kaymaklı Baklava', stokKod: 'HM034', miktarGram: 330 },
+    { urunAd: 'Kaymaklı Havuç Dilimi Baklava', stokKod: 'HM035', miktarGram: 340 },
+    { urunAd: 'Özel Karışık Baklava', stokKod: 'HM036', miktarGram: 350 },
+    { urunAd: 'Soğuk Baklava', stokKod: 'HM037', miktarGram: 360 },
+    { urunAd: 'Tuzlu Antep Fıstığı', stokKod: 'HM038', miktarGram: 370 },
+    { urunAd: 'Yazılı Karışık Tepsi', stokKod: 'HM039', miktarGram: 380 },
+    { urunAd: 'Yılbaşı Tepsisi', stokKod: 'HM040', miktarGram: 390 },
+    // ... Diğer eksik reçeteler buraya eklenebilir ...
+  ];
+
+  // Ürün adlarına göre grupla
+  const grouped = {};
+  for (const rec of receteler) {
+    if (!grouped[rec.urunAd]) grouped[rec.urunAd] = [];
+    grouped[rec.urunAd].push({ stokKod: rec.stokKod, miktarGram: rec.miktarGram });
+  }
+
+  // Ürün adlarını normalize eden fonksiyon
+  function normalize(str) {
+    return str
+      .toLocaleUpperCase('tr-TR')
+      .replace(/\s+/g, '')
+      .replace(/[()\-.,'']/g, '')
+      .replace(/İ/g, 'I')
+      .replace(/Ü/g, 'U')
+      .replace(/Ö/g, 'O')
+      .replace(/Ç/g, 'C')
+      .replace(/Ş/g, 'S')
+      .replace(/Ğ/g, 'G');
+  }
+
+  // Urun tablosundaki adları normalize et
+  const urunler = await prisma.urun.findMany();
+  const urunAdMap = {};
+  for (const urun of urunler) {
+    urunAdMap[normalize(urun.ad)] = urun.id;
+  }
+
+  for (const urunAd in grouped) {
+    const normAd = normalize(urunAd);
+    const urunId = urunAdMap[normAd] || null;
+    if (!urunId) {
+      console.warn('Eşleşmeyen reçete:', urunAd);
+    }
+    const recipe = await prisma.recipe.create({
+      data: {
+        name: urunAd,
+        urunId: urunId,
+        ingredients: {
+          create: grouped[urunAd].map(ing => ({ stokKod: ing.stokKod, miktarGram: ing.miktarGram }))
+        }
+      }
+    });
+    console.log('Reçete eklendi:', urunAd, '-> urunId:', urunId);
+  }
+  console.log('Reçeteler yeni modele göre başarıyla eklendi.');
+}
+
+async function seedMehmetEminSelek(prisma) {
+  const email = 'mehmeteminselek@gmail.com';
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (!existing) {
+    const passwordHash = await bcrypt.hash('123456', 10);
+    await prisma.user.create({
+      data: {
+        ad: 'Mehmet Emin Selek',
+        email,
+        passwordHash,
+        role: 'admin'
+      }
+    });
+    console.log('Kullanıcı eklendi: mehmeteminselek@gmail.com / 123456');
+  } else {
+    console.log('mehmeteminselek@gmail.com zaten mevcut.');
+  }
+}
+
+async function seedUrunlerVeFiyatlar(prisma) {
+  const urunler = [
+    { ad: 'Antep Peynirli Su Böreği', kod: 'UR001', kgFiyat: 950 },
+    { ad: 'Bayram Tepsisi', kod: 'UR002', kgFiyat: 1600 },
+    { ad: 'Cevizli Bülbül Yuvası', kod: 'UR003', kgFiyat: 1450 },
+    { ad: 'Cevizli Eski Usûl Dolama', kod: 'UR004', kgFiyat: 1500 },
+    { ad: 'Cevizli Özel Kare', kod: 'UR005', kgFiyat: 1400 },
+    { ad: 'Cevizli Şöbiyet', kod: 'UR006', kgFiyat: 1450 },
+    { ad: 'Cevizli Yaş Baklava', kod: 'UR007', kgFiyat: 1000 },
+    { ad: 'Doğum Günü Tepsisi', kod: 'UR008', kgFiyat: 1600 },
+    { ad: 'Düz Kadayıf', kod: 'UR009', kgFiyat: 1450 },
+    { ad: 'Fındıklı Çikolatalı Midy', kod: 'UR010', kgFiyat: 1700 },
+    { ad: 'Fıstık Ezmesi', kod: 'UR011', kgFiyat: 1700 },
+    { ad: 'Burma Kadayıf', kod: 'UR012', kgFiyat: 1450 },
+    { ad: 'Bülbül Yuvası', kod: 'UR013', kgFiyat: 1650 },
+    { ad: 'Çikolatalı Midye', kod: 'UR014', kgFiyat: 1800 },
+    { ad: 'Dolama', kod: 'UR015', kgFiyat: 1650 },
+    { ad: 'Eski Usûl Dolama', kod: 'UR016', kgFiyat: 1650 },
+    { ad: 'Havuç Dilimi', kod: 'UR017', kgFiyat: 1400 },
+    { ad: 'Fıstıklı Kurabiye', kod: 'UR018', kgFiyat: 1500 },
+    { ad: 'Kuru Baklava', kod: 'UR019', kgFiyat: 1200 },
+    { ad: 'Midye', kod: 'UR020', kgFiyat: 1600 },
+    { ad: 'Özel Kare', kod: 'UR021', kgFiyat: 1450 },
+    { ad: 'Özel Şöbiyet', kod: 'UR022', kgFiyat: 1650 },
+    { ad: 'Şöbiyet', kod: 'UR023', kgFiyat: 1650 },
+    { ad: 'Yaprak Şöbiyet', kod: 'UR024', kgFiyat: 1700 },
+    { ad: 'Yaş Baklava', kod: 'UR025', kgFiyat: 1200 },
+    { ad: 'İç Fıstık', kod: 'UR026', kgFiyat: 1750 },
+    { ad: 'Kare Fıstık Ezmesi', kod: 'UR027', kgFiyat: 1700 },
+    { ad: 'Karışık', kod: 'UR028', kgFiyat: 1500 },
+    { ad: 'Kaymaklı Baklava', kod: 'UR029', kgFiyat: 950 },
+    { ad: 'Kaymaklı Havuç Dilimi', kod: 'UR030', kgFiyat: 950 },
+    { ad: 'Özel Karışık', kod: 'UR031', kgFiyat: 1600 },
+    { ad: 'Sade Kurabiye', kod: 'UR032', kgFiyat: 1000 },
+    { ad: 'Sadeyağ', kod: 'UR033', kgFiyat: 950 },
+    { ad: 'Sargılı Fıstık Ezmesi', kod: 'UR034', kgFiyat: 1650 },
+    { ad: 'Soğuk Baklava', kod: 'UR035', kgFiyat: 1200 },
+    { ad: 'Tuzlu Antep Fıstığı', kod: 'UR036', kgFiyat: 900 },
+    { ad: 'Yazılı Karışık Tepsi', kod: 'UR037', kgFiyat: 1600 },
+    { ad: 'Yılbaşı Tepsisi', kod: 'UR038', kgFiyat: 1600 },
+  ];
+  const today = new Date();
+  for (const u of urunler) {
+    const urun = await prisma.urun.upsert({
+      where: { kodu: u.kod },
+      update: { ad: u.ad },
+      create: { ad: u.ad, kodu: u.kod }
+    });
+    // Fiyat kaydı var mı kontrol et
+    const existingFiyat = await prisma.fiyat.findFirst({
+      where: {
+        urunId: urun.id,
+        birim: 'GR',
+        gecerliTarih: today
+      }
+    });
+    if (existingFiyat) {
+      await prisma.fiyat.update({
+        where: { id: existingFiyat.id },
+        data: {
+          fiyat: u.kgFiyat / 1000,
+          bitisTarihi: null
+        }
+      });
+      console.log('Fiyat güncellendi:', urun.ad);
+    } else {
+      await prisma.fiyat.create({
+        data: {
+          urunId: urun.id,
+          fiyat: u.kgFiyat / 1000,
+          birim: 'GR',
+          gecerliTarih: today,
+          bitisTarihi: null
+        }
+      });
+      console.log('Fiyat eklendi:', urun.ad);
+    }
+  }
+  console.log('Ürünler ve gram fiyatları başarıyla eklendi.');
+}
 
 async function main() {
   console.log('Seeding started...');
 
   try {
+    await seedMehmetEminSelek(prisma);
     // --- Lookup Tabloları, TepsiTava, Kutu, Urun, Fiyat (Önceki kodla aynı) ---
     console.log('Seeding Lookup Tables...');
     // ... (Lookup tabloları, TepsiTava, Kutu, Urun, Fiyat seed kodları buraya gelecek - önceki cevaplardan alabilirsin) ...
@@ -291,7 +583,6 @@ async function main() {
     const fiyatlarData = [{ urunId: 1, fiyat: 1212.50, birim: "KG", gecerliTarih: new Date("2023-11-21"), bitisTarihi: null }, /* ... diğer fiyatlar ... */]; // Örnek, kendi fiyatlarınızı ekleyin
     await prisma.fiyat.createMany({ data: fiyatlarData, skipDuplicates: true });
     console.log('Lookup tables, products, and prices seeded.');
-
 
     // --- DUMMY SİPARİŞ OLUŞTURMA (20 Adet) ---
     console.log('Creating 20 dummy orders...');
@@ -410,6 +701,13 @@ async function main() {
     }
     console.log('Dummy order creation section finished.');
 
+    // --- STOCK MANAGEMENT SEED ---
+    await seedStockManagement(prisma);
+
+    // --- REÇETE SEED ---
+    await seedReceteler(prisma);
+
+    await seedUrunlerVeFiyatlar(prisma);
 
   } catch (error) {
     console.error('Seeding failed:', error);
