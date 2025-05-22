@@ -39,6 +39,38 @@ async function getTepsiTavaPrice(tx, tepsiTavaId) { // tx parametresi eklendi
     return tepsi?.fiyat || 0;
 }
 
+// Yardımcı fonksiyon: Özel tepsi içeriğini sipariş kalemleri olarak hazırla
+async function getOzelTepsiKalemleri(tx, ozelTepsiId) {
+    const ozelTepsi = await tx.ozelTepsi.findUnique({
+        where: { id: ozelTepsiId },
+        include: {
+            icindekiler: {
+                include: { urun: true }
+            }
+        }
+    });
+
+    if (!ozelTepsi) {
+        throw new Error('Özel tepsi bulunamadı');
+    }
+
+    // Her ürün için varsayılan ambalaj bul (ilk ambalajı kullan)
+    const varsayilanAmbalaj = await tx.ambalaj.findFirst({
+        orderBy: { id: 'asc' }
+    });
+
+    if (!varsayilanAmbalaj) {
+        throw new Error('Varsayılan ambalaj bulunamadı');
+    }
+
+    // Her ürün için sipariş kalemi oluştur
+    return ozelTepsi.icindekiler.map(icerik => ({
+        ambalajId: varsayilanAmbalaj.id,
+        urunId: icerik.urunId,
+        miktar: icerik.miktar,
+        birim: 'KG'
+    }));
+}
 
 export default async function handler(req, res) {
     // CORS ve OPTIONS Handling
@@ -64,14 +96,18 @@ export default async function handler(req, res) {
             aliciTel,
             adres,
             aciklama,
-            siparisler, // Frontend'den gelen paket/ürün dizisi [{AmbalajId, KutuId?, TepsiTavaId?, Urunler: [{UrunId, Miktar, Birim}]}]
+            siparisler,
+            ozelTepsiId,
             gorunecekAd,
-            kargoUcreti: kargoUcretiStr, // Frontend'den gelebilir
-            digerHizmetTutari: digerHizmetTutariStr // Frontend'den gelebilir
+            kargoUcreti: kargoUcretiStr,
+            digerHizmetTutari: digerHizmetTutariStr
         } = req.body;
 
-        if (!tarih || !teslimatTuruId || !gonderenAdi || !gonderenTel || !siparisler || !Array.isArray(siparisler) || siparisler.length === 0) {
-            console.error('Eksik veya geçersiz veri:', { tarih, teslimatTuruId, gonderenAdi, gonderenTel, siparisler });
+        if (!tarih || !teslimatTuruId || !gonderenAdi || !gonderenTel ||
+            (!siparisler && !ozelTepsiId) ||
+            (siparisler && !Array.isArray(siparisler)) ||
+            (siparisler && siparisler.length === 0 && !ozelTepsiId)) {
+            console.error('Eksik veya geçersiz veri:', { tarih, teslimatTuruId, gonderenAdi, gonderenTel, siparisler, ozelTepsiId });
             return res.status(400).json({ message: 'Eksik veya geçersiz veri. Lütfen tüm zorunlu alanları kontrol edin.' });
         }
 
@@ -83,11 +119,22 @@ export default async function handler(req, res) {
 
         try {
             const yeniSiparis = await prisma.$transaction(async (tx) => {
+                let siparisKalemleri = [];
+
+                // Eğer özel tepsi seçildiyse, onun içeriğini al
+                if (ozelTepsiId) {
+                    siparisKalemleri = await getOzelTepsiKalemleri(tx, parseInt(ozelTepsiId));
+                }
+
+                // Normal siparişleri ekle (eğer varsa)
+                if (siparisler && siparisler.length > 0) {
+                    siparisKalemleri = [...siparisKalemleri, ...siparisler];
+                }
 
                 // 1. Toplam Tepsi/Tava Maliyetini Hesapla
                 let hesaplananToplamTepsiMaliyeti = 0;
-                const tepsiTavaIds = siparisler
-                    .map(pkg => pkg.TepsiTavaId) // Gelen payload'daki anahtar adı büyük harfle başlıyor olabilir
+                const tepsiTavaIds = siparisKalemleri
+                    .map(pkg => pkg.tepsiTavaId) // Gelen payload'daki anahtar adı büyük harfle başlıyor olabilir
                     .filter(id => id != null)
                     .map(id => parseInt(id));
 
@@ -102,9 +149,9 @@ export default async function handler(req, res) {
                         return map;
                     }, {});
 
-                    siparisler.forEach(paket => {
-                        if (paket.TepsiTavaId && validTepsiMap[paket.TepsiTavaId] !== undefined) {
-                            hesaplananToplamTepsiMaliyeti += validTepsiMap[paket.TepsiTavaId];
+                    siparisKalemleri.forEach(paket => {
+                        if (paket.tepsiTavaId && validTepsiMap[paket.tepsiTavaId] !== undefined) {
+                            hesaplananToplamTepsiMaliyeti += validTepsiMap[paket.tepsiTavaId];
                         }
                     });
                 }
@@ -134,52 +181,41 @@ export default async function handler(req, res) {
 
                 // 3. Sipariş Kalemlerini Oluştur (Birim Fiyatlarını Hesaplayarak)
                 let toplamEklenenKalem = 0;
-                for (const paket of siparisler) {
-                    if (!paket.Urunler || !Array.isArray(paket.Urunler) || paket.Urunler.length === 0) continue;
-                    if (!paket.AmbalajId) continue;
-
-                    // Kalem verilerini hazırlamak için Promise dizisi oluştur
-                    const kalemVerileriPromises = paket.Urunler.map(async (urun) => {
-                        if (!urun.UrunId || !urun.Miktar || !urun.Birim) {
-                            console.warn(`Sipariş ${olusturulanSiparis.id}, Paket (Ambalaj ID: ${paket.AmbalajId}) içinde eksik ürün bilgisi atlandı:`, urun);
-                            return null; // Eksik bilgili ürünü atla
-                        }
-
-                        const urunId = parseInt(urun.UrunId);
-                        const birim = urun.Birim; // Frontend'den gelen birim (Gram, Adet vb.)
-                        const miktar = parseFloat(urun.Miktar);
-
-                        // O anki geçerli birim fiyatı (KG veya Adet) bul
-                        // Gram için KG fiyatı, Adet için Adet fiyatı aranacak
-                        const fiyatBirim = birim.toLowerCase() === 'gram' ? 'KG' : birim;
-                        const birimFiyat = await getPriceForDate(tx, urunId, fiyatBirim, siparisTarihi);
-
-                        if (birimFiyat === 0) {
-                            console.warn(`!!! Fiyat bulunamadı: urunId=${urunId}, birim=${fiyatBirim}, tarih=${siparisTarihi.toISOString().split('T')[0]}`);
-                            // Fiyat bulunamazsa ne yapılacağına karar verilmeli.
-                            // Şimdilik 0 olarak kaydediyoruz ama belki hata vermek daha iyi olabilir.
-                        }
-
-                        return {
-                            siparisId: olusturulanSiparis.id,
-                            ambalajId: parseInt(paket.AmbalajId),
-                            urunId: urunId,
-                            miktar: miktar,
-                            birim: birim, // Frontend'den gelen orijinal birimi kaydet (Gram, Adet vb.)
-                            birimFiyat: birimFiyat, // <<< Hesaplanan/Bulunan KG veya Adet fiyatını kaydet
-                            kutuId: paket.KutuId ? parseInt(paket.KutuId) : null,
-                            tepsiTavaId: paket.TepsiTavaId ? parseInt(paket.TepsiTavaId) : null,
-                        };
-                    });
-
-                    // Fiyatları asenkron olarak çekip null olmayanları filtrele
-                    const kalemVerileri = (await Promise.all(kalemVerileriPromises)).filter(item => item !== null);
-
-                    if (kalemVerileri.length > 0) {
-                        console.log(`Sipariş ${olusturulanSiparis.id} için ${kalemVerileri.length} kalem ekleniyor...`);
-                        await tx.siparisKalemi.createMany({ data: kalemVerileri });
-                        toplamEklenenKalem += kalemVerileri.length;
+                for (const kalem of siparisKalemleri) {
+                    if (!kalem.urunId || !kalem.miktar || !kalem.birim) {
+                        console.warn(`Sipariş ${olusturulanSiparis.id}, Kalem (Ambalaj ID: ${kalem.ambalajId}) içinde eksik ürün bilgisi atlandı:`, kalem);
+                        continue; // Eksik bilgili ürünü atla
                     }
+
+                    const urunId = parseInt(kalem.urunId);
+                    const birim = kalem.birim; // Frontend'den gelen birim (Gram, Adet vb.)
+                    const miktar = parseFloat(kalem.miktar);
+
+                    // O anki geçerli birim fiyatı (KG veya Adet) bul
+                    // Gram için KG fiyatı, Adet için Adet fiyatı aranacak
+                    const fiyatBirim = birim.toLowerCase() === 'gram' ? 'KG' : birim;
+                    const birimFiyat = await getPriceForDate(tx, urunId, fiyatBirim, siparisTarihi);
+
+                    if (birimFiyat === 0) {
+                        console.warn(`!!! Fiyat bulunamadı: urunId=${urunId}, birim=${fiyatBirim}, tarih=${siparisTarihi.toISOString().split('T')[0]}`);
+                        // Fiyat bulunamazsa ne yapılacağına karar verilmeli.
+                        // Şimdilik 0 olarak kaydediyoruz ama belki hata vermek daha iyi olabilir.
+                    }
+
+                    const siparisKalemi = {
+                        siparisId: olusturulanSiparis.id,
+                        ambalajId: parseInt(kalem.ambalajId),
+                        urunId: urunId,
+                        miktar: miktar,
+                        birim: birim, // Frontend'den gelen orijinal birimi kaydet (Gram, Adet vb.)
+                        birimFiyat: birimFiyat, // <<< Hesaplanan/Bulunan KG veya Adet fiyatını kaydet
+                        kutuId: kalem.kutuId ? parseInt(kalem.kutuId) : null,
+                        tepsiTavaId: kalem.tepsiTavaId ? parseInt(kalem.tepsiTavaId) : null,
+                    };
+
+                    console.log(`Sipariş ${olusturulanSiparis.id} için kalem ekleniyor:`, siparisKalemi);
+                    await tx.siparisKalemi.create({ data: siparisKalemi });
+                    toplamEklenenKalem++;
                 }
 
                 if (toplamEklenenKalem === 0) { throw new Error("Siparişe eklenecek geçerli ürün bulunamadı."); }
@@ -202,6 +238,32 @@ export default async function handler(req, res) {
             else if (error instanceof Prisma.PrismaClientValidationError) { errorMessage = 'Veri doğrulama hatası.'; }
             else if (error instanceof Prisma.PrismaClientKnownRequestError) { errorMessage = `Veritabanı hatası: ${error.code}.`; }
             return res.status(500).json({ message: errorMessage });
+        }
+    }
+
+    // GET /api/siparis endpointine kargoDurumu ile filtreleme özelliği ekliyorum.
+    if (req.method === 'GET') {
+        try {
+            const where = {};
+            if (req.query.kargoDurumu) {
+                where.kargoDurumu = req.query.kargoDurumu;
+            }
+            // Diğer filtreler (ör: status, subeId, tarih, vs.)
+            // ... mevcut filtre kodları ...
+            const siparisler = await prisma.siparis.findMany({
+                where,
+                orderBy: { tarih: 'desc' },
+                include: {
+                    teslimatTuru: true,
+                    sube: true,
+                    gonderenAliciTipi: true,
+                    kalemler: { include: { urun: true, ambalaj: true, tepsiTava: true, kutu: true } },
+                    odemeler: true,
+                },
+            });
+            res.status(200).json(siparisler);
+        } catch (err) {
+            res.status(500).json({ message: 'Siparişler alınamadı', error: err.message });
         }
     }
 

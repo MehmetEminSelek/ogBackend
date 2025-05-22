@@ -57,10 +57,10 @@ model Urun {
   id               Int             @id @default(autoincrement())
   ad               String          @unique
   kodu             String?         @unique
-  // excelKodu alanı kaldırıldı
   fiyatlar         Fiyat[]
   siparisKalemleri SiparisKalemi[]
-  recipes          Recipe[]        // Yeni eklenen: Bu ürünün reçeteleri
+  recipes          Recipe[]
+  ozelTepsiIcerikleri OzelTepsiIcerik[]
 }
 
 model Fiyat {
@@ -95,10 +95,21 @@ model Siparis {
   onaylandiMi       Boolean            @default(false)
   kargoUcreti       Float?             @default(0)
   digerHizmetTutari Float?             @default(0)
-  toplamTepsiMaliyeti Float?           @default(0) // <<< BU SATIRIN OLDUĞUNDAN EMİN OL
-  hazirlanmaDurumu  String             @default("Bekliyor") // <<< YENİ ALAN: "Bekliyor", "Hazırlanıyor", "Hazırlandı"
+  toplamTepsiMaliyeti Float?           @default(0)
+  hazirlanmaDurumu  String             @default("Bekliyor")
+  // --- Kargo/Transfer Alanları ---
+  kargoDurumu       String?            // Enum gibi: "Hazırlanıyor", "Kargoya Verilecek", "Kargoda", "Teslim Edildi", "Şubeye Gönderilecek", "Şubede Teslim"
+  kargoSirketi      String?
+  kargoTakipNo      String?
+  kargoNotu         String?
+  kargoTarihi       DateTime?
+  teslimTarihi      DateTime?
+  hedefSubeId       Int?
+  // ---
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
+  cariId            Int?
+  cari              Cari?              @relation(fields: [cariId], references: [id])
 
   teslimatTuru      TeslimatTuru       @relation(fields: [teslimatTuruId], references: [id])
   sube              Sube?              @relation(fields: [subeId], references: [id])
@@ -240,4 +251,63 @@ model User {
 
   hareketler   StokHareket[]
   transferler  StokTransfer[]
+}
+
+model Cari {
+  id           Int           @id @default(autoincrement())
+  ad           String
+  telefon      String?
+  email        String?       @unique
+  aciklama     String?
+  bakiye       Float         @default(0)
+  hareketler   CariHareket[]
+  siparisler   Siparis[]
+  adresler     Adres[]       // Çoklu adres desteği
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Adres {
+  id        Int      @id @default(autoincrement())
+  cariId    Int
+  tip       String   // Ev, İş, vb.
+  adres     String
+  cari      Cari     @relation(fields: [cariId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CariHareket {
+  id           Int       @id @default(autoincrement())
+  cariId       Int
+  cari         Cari      @relation(fields: [cariId], references: [id])
+  tip          String    // 'siparis', 'odeme', 'duzeltme' vs.
+  tutar        Float
+  aciklama     String?
+  vadeTarihi   DateTime?
+  direction    String    // 'borc' veya 'alacak'
+  createdAt    DateTime  @default(now())
+}
+
+model OzelTepsi {
+  id          Int                @id @default(autoincrement())
+  kod         String             @unique
+  ad          String
+  aciklama    String?
+  fiyat       Float
+  toplamKg    Float              // Toplam ağırlık (kg)
+  icindekiler OzelTepsiIcerik[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model OzelTepsiIcerik {
+  id           Int        @id @default(autoincrement())
+  ozelTepsiId  Int
+  urunId       Int
+  miktar       Float      // KG cinsinden miktar
+  ozelTepsi    OzelTepsi  @relation(fields: [ozelTepsiId], references: [id], onDelete: Cascade)
+  urun         Urun       @relation(fields: [urunId], references: [id])
+
+  @@unique([ozelTepsiId, urunId])
 }

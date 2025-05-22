@@ -351,68 +351,82 @@ async function seedReceteler(prisma) {
   await prisma.recipeIngredient.deleteMany();
   await prisma.recipe.deleteMany();
 
-  // Genişletilmiş reçete listesi (örnek, eksik olanları ekle)
+  // Sadece istenen 17 reçete ve içerikleri:
   const receteler = [
-    // PEYNİRLİ SU BÖREĞİ (UR)
-    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM012', miktarGram: 62.81 },
-    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'YM001', miktarGram: 509.26 },
-    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM001', miktarGram: 421.92 },
-    { urunAd: 'Antep Peynirli Su Böreği', stokKod: 'HM010', miktarGram: 6.03 },
+    // PEYNIRLI SU BOREGI (UR)
+    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM012', miktarGram: 62.81 },
+    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'YM001', miktarGram: 592.96 },
+    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM001', miktarGram: 56.78 },
+    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM010', miktarGram: 6.03 },
     // EZME (UR)
-    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM006', miktarGram: 361.86 },
-    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM017', miktarGram: 477.11 },
-    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM014', miktarGram: 285.55 },
-    { urunAd: 'Fıstık Ezmesi', stokKod: 'HM003', miktarGram: 94.52 },
-    // FISTIKLI KURABİYE (UR)
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM004', miktarGram: 193 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM017', miktarGram: 193 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM012', miktarGram: 193 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM006', miktarGram: 274.95 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM019', miktarGram: 96.77 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM013', miktarGram: 9.68 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM008', miktarGram: 193 },
-    // SADE KURABİYE (UR)
+    { urunAd: 'Ezme (UR)', stokKod: 'HM006', miktarGram: 381.68 },
+    { urunAd: 'Ezme (UR)', stokKod: 'HM017', miktarGram: 477.1 },
+    { urunAd: 'Ezme (UR)', stokKod: 'HM014', miktarGram: 238.55 },
+    { urunAd: 'Ezme (UR)', stokKod: 'HM003', miktarGram: 95.42 },
+    // FISTIKLI KURABIYE
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM004', miktarGram: 203.05 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM017', miktarGram: 194.59 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM012', miktarGram: 169.2 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM006', miktarGram: 274.96 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM019', miktarGram: 17.85 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM013', miktarGram: 1.1 },
+    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM008', miktarGram: 135.36 },
+    // SADE KURABIYE
     { urunAd: 'Sade Kurabiye', stokKod: 'HM008', miktarGram: 193 },
     { urunAd: 'Sade Kurabiye', stokKod: 'HM005', miktarGram: 193 },
     { urunAd: 'Sade Kurabiye', stokKod: 'HM017', miktarGram: 193 },
     { urunAd: 'Sade Kurabiye', stokKod: 'HM012', miktarGram: 193 },
     { urunAd: 'Sade Kurabiye', stokKod: 'HM019', miktarGram: 96.77 },
     { urunAd: 'Sade Kurabiye', stokKod: 'HM013', miktarGram: 9.68 },
-    // HAMUR (YM) - Yarı Mamul
-    { urunAd: 'Hamur', stokKod: 'HM008', miktarGram: 339 },
-    { urunAd: 'Hamur', stokKod: 'HM016', miktarGram: 222 },
-    { urunAd: 'Hamur', stokKod: 'HM015', miktarGram: 185 },
-    { urunAd: 'Hamur', stokKod: 'HM018', miktarGram: 165 },
-    { urunAd: 'Hamur', stokKod: 'HM011', miktarGram: 9 },
-    // ŞERBET (YM) - Yarı Mamul
-    { urunAd: 'Şerbet', stokKod: 'HM017', miktarGram: 848.42 },
-    { urunAd: 'Şerbet', stokKod: 'HM014', miktarGram: 151.58 },
-    { urunAd: 'Şerbet', stokKod: 'HM002', miktarGram: 2 },
-    // KAYMAK (YM) - Yarı Mamul
-    { urunAd: 'Kaymak', stokKod: 'HM004', miktarGram: 98.957 },
-    { urunAd: 'Kaymak', stokKod: 'HM020', miktarGram: 901.043 },
-    // DİĞER ÜRÜNLERİN REÇETELERİ (örnekler, eksik olanları ekle)
-    { urunAd: 'Cevizli Bülbül Yuvası', stokKod: 'HM021', miktarGram: 200 },
-    { urunAd: 'Fıstıklı Bülbül Yuvası', stokKod: 'HM022', miktarGram: 210 },
-    { urunAd: 'Fıstıklı Şöbiyet', stokKod: 'HM023', miktarGram: 220 },
-    { urunAd: 'Fıstıklı Dolama', stokKod: 'HM024', miktarGram: 230 },
-    { urunAd: 'Fıstıklı Eski Usûl Dolama', stokKod: 'HM025', miktarGram: 240 },
-    { urunAd: 'Fıstıklı Havuç Dilimi Baklava', stokKod: 'HM026', miktarGram: 250 },
-    { urunAd: 'Fıstıklı Kuru Baklava', stokKod: 'HM027', miktarGram: 260 },
-    { urunAd: 'Fıstıklı Midye', stokKod: 'HM028', miktarGram: 270 },
-    { urunAd: 'Fıstıklı Özel Kare Baklava', stokKod: 'HM029', miktarGram: 280 },
-    { urunAd: 'Fıstıklı Özel Şöbiyet', stokKod: 'HM030', miktarGram: 290 },
-    { urunAd: 'Fıstıklı Yaprak Şöbiyet', stokKod: 'HM031', miktarGram: 300 },
-    { urunAd: 'Fıstıklı Yaş Baklava', stokKod: 'HM032', miktarGram: 310 },
-    { urunAd: 'Karışık Baklava', stokKod: 'HM033', miktarGram: 320 },
-    { urunAd: 'Kaymaklı Baklava', stokKod: 'HM034', miktarGram: 330 },
-    { urunAd: 'Kaymaklı Havuç Dilimi Baklava', stokKod: 'HM035', miktarGram: 340 },
-    { urunAd: 'Özel Karışık Baklava', stokKod: 'HM036', miktarGram: 350 },
-    { urunAd: 'Soğuk Baklava', stokKod: 'HM037', miktarGram: 360 },
-    { urunAd: 'Tuzlu Antep Fıstığı', stokKod: 'HM038', miktarGram: 370 },
-    { urunAd: 'Yazılı Karışık Tepsi', stokKod: 'HM039', miktarGram: 380 },
-    { urunAd: 'Yılbaşı Tepsisi', stokKod: 'HM040', miktarGram: 390 },
-    // ... Diğer eksik reçeteler buraya eklenebilir ...
+    // DOLAMA (UR)
+    { urunAd: 'Dolama (UR)', stokKod: 'YM001', miktarGram: 148.76 },
+    { urunAd: 'Dolama (UR)', stokKod: 'HM012', miktarGram: 292.27 },
+    { urunAd: 'Dolama (UR)', stokKod: 'HM006', miktarGram: 448.48 },
+    { urunAd: 'Dolama (UR)', stokKod: 'YM003', miktarGram: 243.9 },
+    // BURMA KADAYIF (UR)
+    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM012', miktarGram: 327.7 },
+    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM006', miktarGram: 339.29 },
+    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'YM003', miktarGram: 332.99 },
+    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM007', miktarGram: 272.63 },
+    // MİDYE (UR)
+    { urunAd: 'Midye (UR)', stokKod: 'YM001', miktarGram: 148.76 },
+    { urunAd: 'Midye (UR)', stokKod: 'HM012', miktarGram: 246.31 },
+    { urunAd: 'Midye (UR)', stokKod: 'HM006', miktarGram: 246.31 },
+    { urunAd: 'Midye (UR)', stokKod: 'YM003', miktarGram: 246.31 },
+    { urunAd: 'Midye (UR)', stokKod: 'YM002', miktarGram: 109.85 },
+    // HAVUÇ DİLİMİ (UR)
+    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM001', miktarGram: 117.79 },
+    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM002', miktarGram: 125.48 },
+    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'HM012', miktarGram: 202.88 },
+    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'HM006', miktarGram: 202.88 },
+    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM003', miktarGram: 240.38 },
+    // BÜLBÜL YUVASI (UR)
+    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'YM001', miktarGram: 248.43 },
+    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'HM012', miktarGram: 174.42 },
+    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'HM006', miktarGram: 254.83 },
+    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'YM003', miktarGram: 322.58 },
+    // ÖZEL KARE BAKLAVA (UR)
+    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM001', miktarGram: 240.19 },
+    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM002', miktarGram: 187.62 },
+    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'HM012', miktarGram: 187.62 },
+    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'HM006', miktarGram: 240.19 },
+    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM003', miktarGram: 243.89 },
+    // FISTIKLI KURU BAKLAVA (UR)
+    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'YM001', miktarGram: 335.16 },
+    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'HM012', miktarGram: 385.4 },
+    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'HM006', miktarGram: 385.4 },
+    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'YM003', miktarGram: 385.4 },
+    // FISTIKLI YAŞ BAKLAVA (UR)
+    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'YM001', miktarGram: 294.43 },
+    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'HM012', miktarGram: 338.56 },
+    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'HM006', miktarGram: 338.56 },
+    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'YM003', miktarGram: 338.56 },
+    // CEVİZLİ BAKLAVA (UR)
+    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM001', miktarGram: 294.43 },
+    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM002', miktarGram: 129.53 },
+    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'HM012', miktarGram: 129.53 },
+    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'HM002', miktarGram: 129.53 },
+    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM003', miktarGram: 338.56 },
   ];
 
   // Ürün adlarına göre grupla
@@ -422,7 +436,7 @@ async function seedReceteler(prisma) {
     grouped[rec.urunAd].push({ stokKod: rec.stokKod, miktarGram: rec.miktarGram });
   }
 
-  // Ürün adlarını normalize eden fonksiyon
+  // Urun tablosundaki adları normalize et
   function normalize(str) {
     return str
       .toLocaleUpperCase('tr-TR')
@@ -436,7 +450,6 @@ async function seedReceteler(prisma) {
       .replace(/Ğ/g, 'G');
   }
 
-  // Urun tablosundaki adları normalize et
   const urunler = await prisma.urun.findMany();
   const urunAdMap = {};
   for (const urun of urunler) {
