@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import fs from 'fs';
+import { parse } from 'csv-parse';
 const prisma = new PrismaClient();
 
 // async function main() {
@@ -576,6 +578,90 @@ async function seedUrunlerVeFiyatlar(prisma) {
   console.log('Ürünler ve gram fiyatları başarıyla eklendi.');
 }
 
+async function seedCarilerFromCSV(prisma) {
+  const filePath = '../Cari.csv';
+  const fileContent = fs.readFileSync(filePath, 'utf8');
+  const records = [];
+  await new Promise((resolve, reject) => {
+    parse(fileContent, { delimiter: ';', columns: true, trim: true }, (err, output) => {
+      if (err) reject(err);
+      else {
+        output.forEach(row => records.push(row));
+        resolve();
+      }
+    });
+  });
+
+  // Mevcut şubeleri çek
+  const mevcutSubeler = await prisma.sube.findMany();
+  const subeMap = Object.fromEntries(mevcutSubeler.map(s => [s.ad.trim().toUpperCase(), s]));
+  // Salon şubesi referansı
+  const salonSube = subeMap['SALON'] || await prisma.sube.create({ data: { ad: 'SALON' } });
+
+  let otomatikSalon = [];
+
+  for (const row of records) {
+    const cariAdi = row['CARİ ADI']?.trim();
+    const musteriKodu = row['MÜŞTERİ KODU']?.trim();
+    const subeAdi = row['ŞUBE ADI']?.trim();
+    const telefon = row['TEL']?.trim();
+    if (!cariAdi || !musteriKodu || !subeAdi) continue;
+    // Şube eşleşmesi
+    let sube = subeMap[subeAdi.toUpperCase()];
+    if (!sube) {
+      sube = salonSube;
+      otomatikSalon.push({ cariAdi, musteriKodu, orijinalSube: subeAdi });
+    }
+    await prisma.cari.upsert({
+      where: { musteriKodu },
+      update: { ad: cariAdi, telefon, subeId: sube.id },
+      create: { ad: cariAdi, musteriKodu, telefon, subeId: sube.id },
+    });
+  }
+  if (otomatikSalon.length > 0) {
+    console.log('Aşağıdaki carilerde şube bulunamadı, SALON şubesine atandı:');
+    otomatikSalon.forEach(c => console.log(`- ${c.cariAdi} (${c.musteriKodu}) [Orijinal şube: ${c.orijinalSube}]`));
+  }
+  console.log('CSV cariler ve şubeler eklendi.');
+}
+
+async function seedOrnekAdresler(prisma) {
+  // İlk 10 cariyi çek
+  const cariler = await prisma.cari.findMany({ take: 10, orderBy: { id: 'asc' } });
+  if (cariler.length === 0) return;
+  // 10 farklı örnek adres
+  const ornekAdresler = [
+    'Atatürk Cad. No:1, Şehitkamil',
+    'İnönü Mah. 23. Sokak No:5, Şahinbey',
+    'Gazi Muhtar Paşa Bulvarı No:12',
+    'Küçük Sanayi Sitesi 2. Blok No:8',
+    'Mareşal Fevzi Çakmak Cad. No:45',
+    'Yeditepe Mah. 100. Cadde No:10',
+    'Karataş Mah. 7. Sokak No:3',
+    'Üniversite Bulvarı No:99',
+    'Beylerbeyi Mah. 15. Cadde No:2',
+    'Gazimuhtarpaşa Mah. 4. Sokak No:6',
+  ];
+  // En az 3 cariye hem iş hem ev adresi ekle
+  for (let i = 0; i < cariler.length; i++) {
+    const cari = cariler[i];
+    if (i < 3) {
+      // Hem iş hem ev adresi
+      await prisma.adres.createMany({
+        data: [
+          { cariId: cari.id, tip: 'Ev', adres: ornekAdresler[i] },
+          { cariId: cari.id, tip: 'İş', adres: ornekAdresler[ornekAdresler.length - 1 - i] },
+        ]
+      });
+    } else {
+      // Sadece ev veya iş (dönüşümlü)
+      const tip = i % 2 === 0 ? 'Ev' : 'İş';
+      await prisma.adres.create({ cariId: cari.id, tip, adres: ornekAdresler[i] });
+    }
+  }
+  console.log('İlk 10 cariye örnek adresler eklendi.');
+}
+
 async function main() {
   console.log('Seeding started...');
 
@@ -721,6 +807,10 @@ async function main() {
     await seedReceteler(prisma);
 
     await seedUrunlerVeFiyatlar(prisma);
+
+    await seedCarilerFromCSV(prisma);
+
+    await seedOrnekAdresler(prisma);
 
   } catch (error) {
     console.error('Seeding failed:', error);
