@@ -2,8 +2,13 @@ import 'dotenv/config';
 import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
-import { parse } from 'csv-parse';
+import { parse } from 'csv-parse/sync';
+import path from 'path';
+import { fileURLToPath } from 'url';
 const prisma = new PrismaClient();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // async function main() {
 //   console.log('Seeding started...'); // Başlangıç logu
@@ -480,7 +485,7 @@ async function seedReceteler(prisma) {
 
 async function seedMehmetEminSelek(prisma) {
   const email = 'mehmeteminselek@gmail.com';
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({ where: { email } });
   if (!existing) {
     const passwordHash = await bcrypt.hash('123456', 10);
     await prisma.user.create({
@@ -656,22 +661,99 @@ async function seedOrnekAdresler(prisma) {
     } else {
       // Sadece ev veya iş (dönüşümlü)
       const tip = i % 2 === 0 ? 'Ev' : 'İş';
-      await prisma.adres.create({ cariId: cari.id, tip, adres: ornekAdresler[i] });
+      await prisma.adres.create({ data: { cariId: cari.id, tip, adres: ornekAdresler[i] } });
     }
   }
   console.log('İlk 10 cariye örnek adresler eklendi.');
+}
+
+async function importCarilerFromCSV() {
+  const csvPath = path.join(__dirname, '../../Cari.csv');
+  const fileContent = fs.readFileSync(csvPath, 'utf8');
+  const records = parse(fileContent, { delimiter: ';', columns: true, skip_empty_lines: true });
+
+  // Şubeleri önceden çek
+  const subeler = await prisma.sube.findMany();
+  const subeMap = {};
+  subeler.forEach(s => { subeMap[s.ad.trim().toUpperCase()] = s.id; });
+
+  // SALON şubesi yoksa oluştur
+  let salonSubeId = subeMap['SALON'];
+  if (!salonSubeId) {
+    const salon = await prisma.sube.create({ data: { ad: 'SALON' } });
+    salonSubeId = salon.id;
+    subeMap['SALON'] = salon.id;
+  }
+
+  for (const rec of records) {
+    const ad = rec['CARİ ADI']?.trim();
+    const musteriKodu = rec['MÜŞTERİ KODU']?.trim();
+    const telefon = rec['TEL']?.trim();
+    const subeAd = rec['ŞUBE ADI']?.trim().toUpperCase() || 'SALON';
+    if (!ad || !musteriKodu) continue;
+    let subeId = subeMap[subeAd];
+    if (!subeId) {
+      const sube = await prisma.sube.create({ data: { ad: subeAd } });
+      subeId = sube.id;
+      subeMap[subeAd] = subeId;
+    }
+    // Unique constraint için önce var mı bak
+    const existing = await prisma.cari.findUnique({ where: { musteriKodu } });
+    if (!existing) {
+      await prisma.cari.create({
+        data: {
+          ad,
+          musteriKodu,
+          telefon,
+          subeId,
+        }
+      });
+    }
+  }
+  console.log('CSV cariler başarıyla eklendi.');
+}
+
+async function seedSuperAdmin(prisma) {
+  const email = 'emin';
+  const existing = await prisma.user.findFirst({ where: { email } });
+  const passwordHash = await bcrypt.hash('12345', 10);
+  if (!existing) {
+    await prisma.user.create({
+      data: {
+        ad: 'Emin Süper Admin',
+        email,
+        passwordHash,
+        role: 'superadmin'
+      }
+    });
+    console.log('Superadmin eklendi: emin/12345');
+  } else {
+    await prisma.user.update({ where: { id: existing.id }, data: { passwordHash, role: 'superadmin' } });
+    console.log('Superadmin şifresi ve rolü güncellendi: emin/12345');
+  }
 }
 
 async function main() {
   console.log('Seeding started...');
 
   try {
+    await seedSuperAdmin(prisma);
     await seedMehmetEminSelek(prisma);
     // --- Lookup Tabloları, TepsiTava, Kutu, Urun, Fiyat (Önceki kodla aynı) ---
     console.log('Seeding Lookup Tables...');
     // ... (Lookup tabloları, TepsiTava, Kutu, Urun, Fiyat seed kodları buraya gelecek - önceki cevaplardan alabilirsin) ...
     // ÖNEMLİ: Bu tabloların dolu olduğundan emin ol!
-    await prisma.teslimatTuru.createMany({ data: [{ ad: "Evine Gönderilecek", kodu: "TT001" }, { ad: "Kendisi Alacak", kodu: "TT002" }, { ad: "Mtn", kodu: "TT003" }, { ad: "Otobüs", kodu: "TT004" }, { ad: "Şubeden Teslim", kodu: "TT005" }, { ad: "Yurtiçi Kargo", kodu: "TT006" }], skipDuplicates: true });
+    await prisma.teslimatTuru.createMany({
+      data: [
+        { ad: "Evine Gönderilecek", kodu: "TT001" },
+        { ad: "Kendisi Alacak", kodu: "TT002" },
+        { ad: "Mtn", kodu: "TT003" },
+        { ad: "Otobüs", kodu: "TT004" },
+        { ad: "Şubeden Teslim", kodu: "TT005" },
+        { ad: "Yurtiçi Kargo", kodu: "TT006" },
+        { ad: "Şubeden Şubeye", kodu: "TT007" }
+      ], skipDuplicates: true
+    });
     await prisma.sube.createMany({ data: [{ ad: "Hava-1", kodu: "SB001" }, { ad: "Hava-3", kodu: "SB002" }, { ad: "Hitit", kodu: "SB003" }, { ad: "İbrahimli", kodu: "SB004" }, { ad: "Karagöz", kodu: "SB005" }, { ad: "Otogar", kodu: "SB006" }], skipDuplicates: true });
     await prisma.gonderenAliciTipi.createMany({ data: [{ ad: "Gönderen ve Alıcı", kodu: "GA001" }, { ad: "Tek Gönderen", kodu: "GA002" }, { ad: "Özel", kodu: "GA003" }], skipDuplicates: true });
     await prisma.ambalaj.createMany({ data: [{ ad: "Kutu", kodu: "AMB01" }, { ad: "Tepsi/Tava", kodu: "AMB02" }, { ad: "Özel", kodu: "AMB03" }], skipDuplicates: true });
@@ -811,6 +893,8 @@ async function main() {
     await seedCarilerFromCSV(prisma);
 
     await seedOrnekAdresler(prisma);
+
+    await importCarilerFromCSV();
 
   } catch (error) {
     console.error('Seeding failed:', error);

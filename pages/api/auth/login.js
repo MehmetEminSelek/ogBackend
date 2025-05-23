@@ -10,8 +10,11 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
         const { email, password } = req.body;
-        if (!email || !password) return res.status(400).json({ message: 'Email ve şifre zorunludur.' });
-        const user = await prisma.user.findUnique({ where: { email } });
+        if (!email || !password) return res.status(400).json({ message: 'Email/Kullanıcı adı ve şifre zorunludur.' });
+        let user = await prisma.user.findFirst({ where: { email } });
+        if (!user) {
+            user = await prisma.user.findFirst({ where: { ad: email } });
+        }
         if (!user) return res.status(401).json({ message: 'Geçersiz kullanıcı veya şifre.' });
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return res.status(401).json({ message: 'Geçersiz kullanıcı veya şifre.' });

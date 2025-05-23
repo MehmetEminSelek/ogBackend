@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../../lib/prisma';
 import { sendWhatsApp } from '../../../lib/whatsapp.js';
 
 export default async function handler(req, res) {
-    const prisma = new PrismaClient();
-
     try {
         console.log('Vade takip endpointi çağrıldı');
 

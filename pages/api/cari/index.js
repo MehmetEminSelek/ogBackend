@@ -1,12 +1,13 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '../../../lib/prisma';
 
 export default async function handler(req, res) {
     if (req.method === 'GET') {
         // Cari listesi
         const cariler = await prisma.cari.findMany({
             orderBy: { ad: 'asc' },
+            include: {
+                adresler: true,
+            },
         });
         return res.status(200).json(cariler);
     }
@@ -32,11 +33,21 @@ export default async function handler(req, res) {
     }
     if (req.method === 'PUT') {
         // Cari güncelle
-        const { id, ...data } = req.body;
+        const { id, adresler, ...otherData } = req.body;
         if (!id) return res.status(400).json({ error: 'ID zorunlu' });
+        const updateData = { ...otherData };
+        delete updateData.hareketler;
+        delete updateData.siparisler;
+        if (Array.isArray(adresler)) {
+            updateData.adresler = {
+                deleteMany: {},
+                create: adresler.map(a => ({ tip: a.tip || 'Genel', adres: a.adres }))
+            };
+        }
         const guncellenen = await prisma.cari.update({
             where: { id: Number(id) },
-            data,
+            data: updateData,
+            include: { adresler: true },
         });
         return res.status(200).json(guncellenen);
     }

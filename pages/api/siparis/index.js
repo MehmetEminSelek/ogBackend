@@ -117,6 +117,16 @@ export default async function handler(req, res) {
         }
         siparisTarihi.setHours(0, 0, 0, 0); // Sadece tarih kısmı
 
+        const teslimatTuru = await prisma.teslimatTuru.findUnique({ where: { id: parseInt(teslimatTuruId) } });
+        let kargoDurumuToSet = null;
+        if (teslimatTuru) {
+            if (teslimatTuru.kodu === 'TT007') {
+                kargoDurumuToSet = 'Şubeye Gönderilecek';
+            } else if (['TT001', 'TT003', 'TT004', 'TT006'].includes(teslimatTuru.kodu)) {
+                kargoDurumuToSet = 'Kargoya Verilecek';
+            }
+        }
+
         try {
             const yeniSiparis = await prisma.$transaction(async (tx) => {
                 let siparisKalemleri = [];
@@ -171,9 +181,10 @@ export default async function handler(req, res) {
                         adres: adres || null,
                         aciklama: aciklama || null,
                         gorunecekAd: gorunecekAd || null,
-                        toplamTepsiMaliyeti: hesaplananToplamTepsiMaliyeti, // Hesaplanan değeri kaydet
+                        toplamTepsiMaliyeti: hesaplananToplamTepsiMaliyeti,
                         kargoUcreti: kargoUcretiStr ? parseFloat(kargoUcretiStr) : 0,
                         digerHizmetTutari: digerHizmetTutariStr ? parseFloat(digerHizmetTutariStr) : 0,
+                        kargoDurumu: kargoDurumuToSet,
                         // onaylandiMi varsayılan olarak false olacak
                     },
                 });
@@ -254,7 +265,7 @@ export default async function handler(req, res) {
                 where,
                 orderBy: { tarih: 'desc' },
                 include: {
-                    teslimatTuru: true,
+                    teslimatTuru: { select: { ad: true, kodu: true } },
                     sube: true,
                     gonderenAliciTipi: true,
                     kalemler: { include: { urun: true, ambalaj: true, tepsiTava: true, kutu: true } },

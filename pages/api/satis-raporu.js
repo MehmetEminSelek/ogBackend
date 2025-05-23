@@ -30,8 +30,7 @@ export default async function handler(req, res) {
                         birimFiyat: true,
                         urun: { select: { ad: true } }
                     }
-                },
-                tarih: true
+                }
             }
         });
         // 2. Satış detaylarını düzleştir

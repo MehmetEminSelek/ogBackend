@@ -245,11 +245,15 @@ model StokHareket {
 model User {
   id           Int      @id @default(autoincrement())
   ad           String
-  email        String   @unique
+  email        String?   
   passwordHash String
   role         String   // 'admin', 'user', etc.
   createdAt    DateTime @default(now())
-
+  sgkDurumu    String?
+  girisYili    Int?
+  sube         String?
+  erpPasifAktif Boolean @default(true)
+  gunlukUcret  Float?
   hareketler   StokHareket[]
   transferler  StokTransfer[]
 }
@@ -264,7 +268,7 @@ model Cari {
   hareketler   CariHareket[]
   siparisler   Siparis[]
   adresler     Adres[]       // Çoklu adres desteği
-  musteriKodu  String        @unique
+  musteriKodu  String       @unique
   subeId       Int?          // Şube ilişkisi
   sube         Sube?         @relation(fields: [subeId], references: [id])
   createdAt    DateTime      @default(now())
