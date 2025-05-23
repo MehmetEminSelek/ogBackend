@@ -1,0 +1,7 @@
+{"amount":606250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":21,"timestamp":"2025-05-23 19:04:43","userId":null}
+{"amount":606250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":22,"timestamp":"2025-05-23 19:05:00","userId":null}
+{"amount":606250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":23,"timestamp":"2025-05-23 19:13:43","userId":null}
+{"amount":121250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":24,"timestamp":"2025-05-23 19:14:15","userId":null}
+{"amount":121250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":25,"timestamp":"2025-05-23 19:15:03","userId":null}
+{"amount":606250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":26,"timestamp":"2025-05-23 19:15:13","userId":null}
+{"amount":121250,"event":"ORDER_CREATED","level":"info","message":"Order created","orderId":27,"timestamp":"2025-05-23 19:18:23","userId":null}

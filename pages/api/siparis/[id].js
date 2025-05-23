@@ -25,12 +25,17 @@ async function dusStokFromRecete(tx, siparisId) {
         where: { id: siparisId },
         include: { kalemler: { include: { urun: true } } }
     });
-    if (!siparis) return;
+    if (!siparis) throw new Error('Sipariş bulunamadı');
+
     const OP004 = await tx.operasyonBirimi.findUnique({ where: { kod: 'OP004' } });
     if (!OP004) throw new Error('Üretim birimi bulunamadı!');
 
-    // 2. Daha önce stok düşümü yapılmış mı kontrolü (ör: bir log tablosu yoksa, siparişin bir alanı ile işaretlenebilir)
-    if (siparis.aciklama && siparis.aciklama.includes('[STOK DÜŞÜLDÜ]')) return;
+    // 2. Daha önce stok düşümü yapılmış mı kontrolü
+    if (siparis.aciklama && siparis.aciklama.includes('[STOK DÜŞÜLDÜ]')) {
+        throw new Error('Bu sipariş için daha önce stok düşümü yapılmış');
+    }
+
+    const stokHatalari = [];
 
     // 3. Her kalem için reçeteyi bul ve stoktan düş
     for (const kalem of siparis.kalemler) {
@@ -39,33 +44,75 @@ async function dusStokFromRecete(tx, siparisId) {
             where: { urunId: kalem.urun.id },
             include: { ingredients: true }
         });
-        if (!recipe) continue;
-        // Sipariş miktarını gram cinsine çevir
-        const miktar = kalem.birim.toLowerCase() === 'gram' ? kalem.miktar : kalem.miktar * 1000;
+
+        if (!recipe) {
+            stokHatalari.push(`Ürün ${kalem.urun.ad} için reçete bulunamadı`);
+            continue;
+        }
+
+        // Sipariş miktarını kilogram cinsine çevir
+        const siparisKg = kalem.birim.toLowerCase() === 'gram' ?
+            kalem.miktar / 1000 : // gram -> kg
+            kalem.miktar; // zaten kg
+
         for (const ing of recipe.ingredients) {
             // Hammadde mi, yarı mamul mü?
             const hammadde = await tx.hammadde.findUnique({ where: { kod: ing.stokKod } });
             const yariMamul = !hammadde ? await tx.yariMamul.findUnique({ where: { kod: ing.stokKod } }) : null;
-            const dusulecek = ing.miktarGram * miktar / 1000; // Reçete miktarı 1kg için, sipariş miktarı kg/gram
+
+            // Reçetedeki miktar gram, sipariş kg cinsinden. Toplam düşülecek miktarı hesapla
+            const dusulecekGram = ing.miktarGram * siparisKg;
+
             if (hammadde) {
-                const stok = await tx.stok.findFirst({ where: { hammaddeId: hammadde.id, operasyonBirimiId: OP004.id } });
-                if (stok && stok.miktarGram >= dusulecek) {
-                    await tx.stok.update({ where: { id: stok.id }, data: { miktarGram: { decrement: dusulecek } } });
+                const stok = await tx.stok.findFirst({
+                    where: { hammaddeId: hammadde.id, operasyonBirimiId: OP004.id }
+                });
+
+                if (!stok) {
+                    stokHatalari.push(`${hammadde.ad} için stok kaydı bulunamadı`);
+                } else if (stok.miktarGram < dusulecekGram) {
+                    stokHatalari.push(
+                        `${hammadde.ad} için yetersiz stok. Gereken: ${dusulecekGram}g, Mevcut: ${stok.miktarGram}g`
+                    );
                 } else {
-                    console.error(`Yetersiz stok: ${hammadde.ad} (${ing.stokKod})`);
+                    await tx.stok.update({
+                        where: { id: stok.id },
+                        data: { miktarGram: { decrement: dusulecekGram } }
+                    });
                 }
             } else if (yariMamul) {
-                const stok = await tx.stok.findFirst({ where: { yariMamulId: yariMamul.id, operasyonBirimiId: OP004.id } });
-                if (stok && stok.miktarGram >= dusulecek) {
-                    await tx.stok.update({ where: { id: stok.id }, data: { miktarGram: { decrement: dusulecek } } });
+                const stok = await tx.stok.findFirst({
+                    where: { yariMamulId: yariMamul.id, operasyonBirimiId: OP004.id }
+                });
+
+                if (!stok) {
+                    stokHatalari.push(`${yariMamul.ad} için stok kaydı bulunamadı`);
+                } else if (stok.miktarGram < dusulecekGram) {
+                    stokHatalari.push(
+                        `${yariMamul.ad} için yetersiz stok. Gereken: ${dusulecekGram}g, Mevcut: ${stok.miktarGram}g`
+                    );
                 } else {
-                    console.error(`Yetersiz yarı mamul stok: ${yariMamul.ad} (${ing.stokKod})`);
+                    await tx.stok.update({
+                        where: { id: stok.id },
+                        data: { miktarGram: { decrement: dusulecekGram } }
+                    });
                 }
+            } else {
+                stokHatalari.push(`${ing.stokKod} kodlu malzeme bulunamadı`);
             }
         }
     }
+
+    // Eğer herhangi bir hata varsa işlemi iptal et
+    if (stokHatalari.length > 0) {
+        throw new Error('Stok düşme işlemi başarısız:\n' + stokHatalari.join('\n'));
+    }
+
     // 4. Sipariş açıklamasına işaret ekle
-    await tx.siparis.update({ where: { id: siparisId }, data: { aciklama: (siparis.aciklama || '') + ' [STOK DÜŞÜLDÜ]' } });
+    await tx.siparis.update({
+        where: { id: siparisId },
+        data: { aciklama: (siparis.aciklama || '') + ' [STOK DÜŞÜLDÜ]' }
+    });
 }
 
 export default async function handler(req, res) {
