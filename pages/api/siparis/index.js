@@ -43,25 +43,46 @@ const simplePerformanceMonitor = (handler) => {
 // Yardımcı fonksiyon: Belirli bir tarih için ürün fiyatını bulur
 async function getPriceForDate(tx, urunId, birim, tarih) { // tx parametresi eklendi
     if (!urunId || !birim || !tarih) return 0;
-    // Birim KG ise KG fiyatını, değilse Adet fiyatını ara
-    const targetBirim = birim.toLowerCase() === 'gram' ? 'KG' : birim; // Gram için KG fiyatı aranacak
 
-    const fiyatKaydi = await tx.fiyat.findFirst({ // tx kullanıldı
-        where: {
-            urunId: urunId,
-            birim: targetBirim, // KG veya Adet olarak ara
-            gecerliTarih: { lte: tarih },
-            // Bitiş tarihi kontrolü (şemada varsa)
-            OR: [
-                { bitisTarihi: null }, // Bitiş tarihi yoksa hala geçerlidir
-                { bitisTarihi: { gte: tarih } } // Veya bitiş tarihi sorgu tarihine eşit veya sonra olmalı
-            ]
-        },
-        orderBy: { gecerliTarih: 'desc' }, // En güncel geçerli fiyatı bul
-    });
-    console.log(`Fiyat sorgusu: urunId=${urunId}, birim=${targetBirim}, tarih=${tarih.toISOString().split('T')[0]}, bulunanFiyat=${fiyatKaydi?.fiyat}`);
-    // Bulunan KG veya Adet fiyatını döndür
-    return fiyatKaydi?.fiyat || 0;
+    // Birim eşleştirmesi - Gram için KG veya GR fiyatını ara
+    let targetBirimler = [];
+    if (birim.toLowerCase() === 'gram') {
+        targetBirimler = ['KG', 'GR']; // Hem KG hem GR fiyatını ara
+    } else {
+        targetBirimler = [birim]; // Adet, Porsiyon vb. için direkt ara
+    }
+
+    let fiyatKaydi = null;
+
+    // Önce KG, sonra GR dene
+    for (const targetBirim of targetBirimler) {
+        fiyatKaydi = await tx.fiyat.findFirst({
+            where: {
+                urunId: urunId,
+                birim: targetBirim,
+                gecerliTarih: { lte: tarih },
+                // Bitiş tarihi kontrolü (şemada varsa)
+                OR: [
+                    { bitisTarihi: null }, // Bitiş tarihi yoksa hala geçerlidir
+                    { bitisTarihi: { gte: tarih } } // Veya bitiş tarihi sorgu tarihine eşit veya sonra olmalı
+                ]
+            },
+            orderBy: { gecerliTarih: 'desc' }, // En güncel geçerli fiyatı bul
+        });
+
+        if (fiyatKaydi) {
+            console.log(`✅ Fiyat bulundu: urunId=${urunId}, birim=${targetBirim}, tarih=${tarih.toISOString().split('T')[0]}, fiyat=${fiyatKaydi.fiyat}`);
+            break; // İlk bulunan fiyatı kullan
+        }
+    }
+
+    if (!fiyatKaydi) {
+        console.log(`❌ Fiyat bulunamadı: urunId=${urunId}, arananBirimler=${targetBirimler.join(',')}, tarih=${tarih.toISOString().split('T')[0]}`);
+        return 0;
+    }
+
+    // Bulunan fiyatı döndür
+    return fiyatKaydi.fiyat || 0;
 }
 
 // Yardımcı fonksiyon: Tepsi/Tava fiyatını bulur

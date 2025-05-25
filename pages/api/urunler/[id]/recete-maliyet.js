@@ -1,12 +1,14 @@
 // pages/api/urunler/[id]/recete-maliyet.js
 // Ürün reçetesi ve maliyet hesaplama API'si
 
-import prisma from '../../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export default async function handler(req, res) {
-    // CORS ayarları
+    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     if (req.method === 'OPTIONS') {
@@ -14,25 +16,27 @@ export default async function handler(req, res) {
     }
 
     if (req.method !== 'GET') {
-        res.setHeader('Allow', ['GET']);
-        return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
-    }
-
-    const { id } = req.query;
-
-    if (!id) {
-        return res.status(400).json({ error: 'Ürün ID gerekli' });
+        return res.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
-        // Ürünü kontrol et
+        const { id } = req.query;
+        const { gramaj } = req.query; // Ara gramaj parametresi
+
+        // Ürün bilgilerini al
         const urun = await prisma.urun.findUnique({
             where: { id: parseInt(id) },
-            select: {
-                id: true,
-                ad: true,
-                agirlik: true,
-                satisaBirimi: true
+            include: {
+                fiyatlar: {
+                    where: { aktif: true },
+                    orderBy: { gecerliTarih: 'desc' },
+                    take: 1
+                },
+                recipes: {
+                    include: {
+                        ingredients: true
+                    }
+                }
             }
         });
 
@@ -40,148 +44,159 @@ export default async function handler(req, res) {
             return res.status(404).json({ error: 'Ürün bulunamadı' });
         }
 
-        // Ürünün reçetelerini getir
-        const receteler = await prisma.recipe.findMany({
-            where: { urunId: parseInt(id) },
-            include: {
-                ingredients: true
-            },
-            orderBy: { name: 'asc' }
-        });
+        // Satış fiyatı (KG bazında)
+        const kgSatisFiyati = urun.fiyatlar[0]?.fiyat || 0;
 
-        if (receteler.length === 0) {
-            return res.status(200).json({
-                urun,
-                receteler: [],
-                maliyetAnalizi: {
-                    toplamMaliyet: 0,
-                    gramMaliyeti: 0,
-                    malzemeSayisi: 0,
-                    message: 'Bu ürün için henüz reçete tanımlanmamış'
-                }
+        // Ara gramaj hesaplaması
+        const hedefGramaj = gramaj ? parseInt(gramaj) : 1000; // Varsayılan 1000g (1KG)
+        const araGramajSatisFiyati = (hedefGramaj * kgSatisFiyati) / 1000;
+
+        // Reçete analizi
+        const receteAnalizi = [];
+        let toplamReceteMaliyeti = 0;
+        let toplamReceteGrami = 0;
+
+        for (const recete of urun.recipes) {
+            let receteMaliyeti = 0;
+            let receteGrami = 0;
+            const malzemeler = [];
+
+            for (const malzeme of recete.ingredients) {
+                // Malzeme maliyeti (₺/KG)
+                const malzemeMaliyeti = getMalzemeMaliyeti(malzeme.stokKod);
+
+                // Malzeme toplam maliyeti (TL)
+                const malzemeToplam = (malzeme.miktarGram * malzemeMaliyeti) / 1000;
+
+                receteMaliyeti += malzemeToplam;
+                receteGrami += malzeme.miktarGram;
+
+                malzemeler.push({
+                    stokKod: malzeme.stokKod,
+                    miktarGram: malzeme.miktarGram,
+                    birimMaliyet: malzemeMaliyeti, // ₺/KG
+                    toplamMaliyet: malzemeToplam,  // TL
+                    yuzde: malzeme.percentage || 0
+                });
+            }
+
+            // Reçete başına maliyet (₺/KG)
+            const receteKgMaliyeti = receteGrami > 0 ? (receteMaliyeti * 1000) / receteGrami : 0;
+
+            // Ara gramaj için reçete maliyeti
+            const araGramajReceteMaliyeti = (hedefGramaj * receteKgMaliyeti) / 1000;
+
+            receteAnalizi.push({
+                id: recete.id,
+                name: recete.name,
+                description: recete.description,
+                toplamMaliyet: receteMaliyeti,      // TL (reçete toplam)
+                toplamGram: receteGrami,            // gram
+                kgMaliyeti: receteKgMaliyeti,       // ₺/KG
+                araGramajMaliyeti: araGramajReceteMaliyeti, // Hedef gramaj için maliyet
+                malzemeler: malzemeler
             });
+
+            toplamReceteMaliyeti += receteMaliyeti;
+            toplamReceteGrami += receteGrami;
         }
-
-        // Her reçete için detaylı maliyet hesaplama
-        const detayliReceteler = await Promise.all(
-            receteler.map(async (recete) => {
-                const malzemeler = await Promise.all(
-                    recete.ingredients.map(async (ingredient) => {
-                        let malzemeAdi = null;
-                        let malzemeTipi = null;
-                        let birimMaliyet = 0;
-                        let toplamMaliyet = 0;
-
-                        // Hammadde kontrolü
-                        const hammadde = await prisma.hammadde.findUnique({
-                            where: { kod: ingredient.stokKod }
-                        });
-
-                        if (hammadde) {
-                            malzemeAdi = hammadde.ad;
-                            malzemeTipi = 'Hammadde';
-
-                            // Hammadde için ortalama maliyet hesapla (son 30 günlük stok hareketlerinden)
-                            const sonHareketler = await prisma.stokHareket.findMany({
-                                where: {
-                                    stok: {
-                                        hammaddeId: hammadde.id
-                                    },
-                                    tip: 'giris',
-                                    createdAt: {
-                                        gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Son 30 gün
-                                    }
-                                },
-                                orderBy: { createdAt: 'desc' },
-                                take: 10 // Son 10 giriş
-                            });
-
-                            if (sonHareketler.length > 0) {
-                                // Basit ortalama maliyet (gerçek uygulamada daha karmaşık olabilir)
-                                birimMaliyet = 0.05; // Örnek: 5 kuruş/gram
-                            }
-                        } else {
-                            // Yarı mamul kontrolü
-                            const yariMamul = await prisma.yariMamul.findUnique({
-                                where: { kod: ingredient.stokKod }
-                            });
-
-                            if (yariMamul) {
-                                malzemeAdi = yariMamul.ad;
-                                malzemeTipi = 'Yarı Mamul';
-                                birimMaliyet = 0.08; // Örnek: 8 kuruş/gram
-                            }
-                        }
-
-                        toplamMaliyet = (ingredient.miktarGram * birimMaliyet) / 1000; // TL cinsinden
-
-                        return {
-                            id: ingredient.id,
-                            stokKod: ingredient.stokKod,
-                            malzemeAdi,
-                            malzemeTipi,
-                            miktarGram: ingredient.miktarGram,
-                            birimMaliyet: birimMaliyet, // Kuruş/gram
-                            toplamMaliyet: toplamMaliyet, // TL
-                            mevcut: malzemeAdi !== null
-                        };
-                    })
-                );
-
-                const receteMaliyeti = malzemeler.reduce((toplam, malzeme) => toplam + malzeme.toplamMaliyet, 0);
-                const toplamGram = malzemeler.reduce((toplam, malzeme) => toplam + malzeme.miktarGram, 0);
-
-                return {
-                    id: recete.id,
-                    name: recete.name,
-                    malzemeler,
-                    ozet: {
-                        malzemeSayisi: malzemeler.length,
-                        toplamGram,
-                        toplamMaliyet: receteMaliyeti,
-                        gramMaliyeti: toplamGram > 0 ? (receteMaliyeti * 1000) / toplamGram : 0, // Kuruş/gram
-                        eksikMalzeme: malzemeler.filter(m => !m.mevcut).length
-                    }
-                };
-            })
-        );
 
         // Genel maliyet analizi
-        const toplamReceteMaliyeti = detayliReceteler.reduce((toplam, recete) => toplam + recete.ozet.toplamMaliyet, 0);
-        const ortalamaMaliyet = detayliReceteler.length > 0 ? toplamReceteMaliyeti / detayliReceteler.length : 0;
-        const toplamMalzemeSayisi = detayliReceteler.reduce((toplam, recete) => toplam + recete.ozet.malzemeSayisi, 0);
+        const ortalamaMaliyet = toplamReceteGrami > 0 ? (toplamReceteMaliyeti * 1000) / toplamReceteGrami : 0;
+        const araGramajToplamMaliyet = (hedefGramaj * ortalamaMaliyet) / 1000;
 
-        // Ürün ağırlığına göre gram maliyeti
-        let gramMaliyeti = 0;
-        if (urun.agirlik && ortalamaMaliyet > 0) {
-            gramMaliyeti = (ortalamaMaliyet * 1000) / urun.agirlik; // Kuruş/gram
-        }
+        // Kar analizi
+        const karMiktari = araGramajSatisFiyati - araGramajToplamMaliyet;
+        const karMarji = araGramajSatisFiyati > 0 ? (karMiktari / araGramajSatisFiyati * 100) : 0;
 
-        const maliyetAnalizi = {
-            toplamMaliyet: ortalamaMaliyet,
-            gramMaliyeti,
-            malzemeSayisi: toplamMalzemeSayisi,
-            receteSayisi: detayliReceteler.length,
-            ortalamaMalzemeSayisi: detayliReceteler.length > 0 ? Math.round(toplamMalzemeSayisi / detayliReceteler.length) : 0,
-            karlilik: {
-                maliyetFiyati: urun.maliyetFiyati || 0,
-                karMarji: urun.karMarji || 0,
-                hesaplananMaliyet: ortalamaMaliyet,
-                farkYuzdesi: urun.maliyetFiyati ? ((urun.maliyetFiyati - ortalamaMaliyet) / urun.maliyetFiyati * 100) : 0
+        // Maliyet dağılımı
+        const maliyetDagilimi = {};
+        receteAnalizi.forEach(recete => {
+            recete.malzemeler.forEach(malzeme => {
+                if (!maliyetDagilimi[malzeme.stokKod]) {
+                    maliyetDagilimi[malzeme.stokKod] = {
+                        toplamMaliyet: 0,
+                        toplamGram: 0,
+                        birimMaliyet: malzeme.birimMaliyet
+                    };
+                }
+                maliyetDagilimi[malzeme.stokKod].toplamMaliyet += malzeme.toplamMaliyet;
+                maliyetDagilimi[malzeme.stokKod].toplamGram += malzeme.miktarGram;
+            });
+        });
+
+        const response = {
+            urun: {
+                id: urun.id,
+                kodu: urun.kodu,
+                ad: urun.ad,
+                kgSatisFiyati: kgSatisFiyati,
+                hedefGramaj: hedefGramaj,
+                araGramajSatisFiyati: araGramajSatisFiyati
+            },
+            maliyet: {
+                toplamMaliyet: araGramajToplamMaliyet,      // Hedef gramaj için toplam maliyet
+                kgMaliyeti: ortalamaMaliyet,                // ₺/KG maliyet
+                gramMaliyeti: ortalamaMaliyet / 1000,       // ₺/gram maliyet
+                karMiktari: karMiktari,                     // TL kar
+                karMarji: karMarji,                         // % kar marjı
+                maliyetDagilimi: maliyetDagilimi
+            },
+            receteler: receteAnalizi,
+            hesaplamaDetayi: {
+                formul: `(${hedefGramaj}g × ${ortalamaMaliyet.toFixed(2)}₺/KG) ÷ 1000 = ${araGramajToplamMaliyet.toFixed(2)}₺`,
+                aciklama: `${hedefGramaj} gram ürün için maliyet hesaplaması`,
+                kgBazindaHesaplama: {
+                    satisFiyati: `${kgSatisFiyati}₺/KG`,
+                    maliyet: `${ortalamaMaliyet.toFixed(2)}₺/KG`,
+                    kar: `${(kgSatisFiyati - ortalamaMaliyet).toFixed(2)}₺/KG`
+                }
             }
         };
 
-        return res.status(200).json({
-            urun,
-            receteler: detayliReceteler,
-            maliyetAnalizi
-        });
+        res.status(200).json(response);
 
     } catch (error) {
-        console.error('❌ Reçete maliyet hesaplama hatası:', error);
-        return res.status(500).json({
-            error: 'Reçete ve maliyet bilgileri alınırken hata oluştu',
+        console.error('Reçete maliyet hesaplama hatası:', error);
+        res.status(500).json({
+            error: 'Maliyet hesaplaması yapılırken hata oluştu',
             details: error.message
         });
     }
+}
+
+// Malzeme maliyeti hesaplama fonksiyonu
+function getMalzemeMaliyeti(stokKod) {
+    const malzemeMaliyetleri = {
+        // Hammaddeler (₺/KG) - Güncel piyasa fiyatları
+        'UN': 8,                    // Un
+        'SEKER': 12,               // Şeker  
+        'TEREYAG': 45,             // Tereyağı
+        'YUMURTA': 25,             // Yumurta
+        'SUT': 15,                 // Süt
+        'ANTEP_FISTIK': 180,       // Antep Fıstığı
+        'CEVIZ': 80,               // Ceviz
+        'FINDIK': 90,              // Fındık
+        'PHYLLO': 20,              // Yufka
+        'SERBETLIK_SEKER': 12,     // Şerbet için şeker
+        'LIMON': 8,                // Limon
+        'VANILYA': 150,            // Vanilya
+        'KAKAO': 35,               // Kakao
+        'CIKOLATA': 60,            // Çikolata
+        'PEYNIR': 40,              // Peynir
+        'MAYDANOZ': 15,            // Maydanoz
+        'SADE_YAG': 25,            // Sade Yağ
+        'BADEM': 120,              // Badem
+        'SUSAM': 30,               // Susam
+        'HINDISTAN_CEVIZI': 40,    // Hindistan Cevizi
+        'KREMA': 35,               // Krema
+        'YOGURT': 18,              // Yoğurt
+        'PEKMEZ': 25,              // Pekmez
+        'BAL': 80,                 // Bal
+        'TARÇIN': 200,             // Tarçın
+        'KARANFIL': 300,           // Karanfil
+        'ZENCEFIL': 150            // Zencefil
+    };
+
+    return malzemeMaliyetleri[stokKod] || 10; // Varsayılan 10₺/KG
 } 
