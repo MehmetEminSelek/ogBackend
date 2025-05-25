@@ -54,14 +54,93 @@ model Kutu {
   siparisKalemleri SiparisKalemi[]
 }
 
+// Ürün Kategorisi Modeli
+model UrunKategori {
+  id          Int      @id @default(autoincrement())
+  ad          String   @unique
+  aciklama    String?
+  renk        String?  // Kategori rengi (UI için)
+  ikon        String?  // Kategori ikonu
+  aktif       Boolean  @default(true)
+  siraNo      Int?     // Sıralama için
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  urunler     Urun[]
+}
+
+// Geliştirilmiş Ürün Modeli
 model Urun {
   id               Int             @id @default(autoincrement())
   ad               String          @unique
   kodu             String?         @unique
+  aciklama         String?         // Ürün açıklaması
+  kisaAciklama     String?         // Kısa açıklama
+  kategoriId       Int?            // Kategori ilişkisi
+  kategori         UrunKategori?   @relation(fields: [kategoriId], references: [id])
+  
+  // Görsel ve Medya
+  anaGorsel        String?         // Ana ürün görseli URL
+  galeriGorseller  String[]        // Ek görseller (JSON array)
+  
+  // Ürün Özellikleri
+  agirlik          Float?          // Standart ağırlık (gram)
+  boyutlar         String?         // Boyut bilgisi (JSON: {en, boy, yukseklik})
+  renk             String?         // Ürün rengi
+  malzeme          String?         // Ana malzeme
+  mensei           String?         // Menşei ülke
+  
+  // Stok ve Satış Bilgileri
+  stokKodu         String?         // Stok kodu
+  barkod           String?         @unique // Barkod
+  minStokMiktari   Float?          @default(0) // Minimum stok miktarı
+  maxStokMiktari   Float?          // Maksimum stok miktarı
+  kritikStokSeviye Float?          @default(10) // Kritik stok seviyesi
+  
+  // Satış Bilgileri
+  satisaBirimi     String?         @default("KG") // Satış birimi
+  minSatisMiktari  Float?          @default(1) // Minimum satış miktarı
+  maxSatisMiktari  Float?          // Maksimum satış miktarı
+  
+  // Durum ve Kontrol
+  aktif            Boolean         @default(true)
+  satisaUygun      Boolean         @default(true)
+  ozelUrun         Boolean         @default(false) // Özel/premium ürün
+  yeniUrun         Boolean         @default(false) // Yeni ürün
+  indirimliUrun    Boolean         @default(false) // İndirimli ürün
+  
+  // SEO ve Arama
+  seoBaslik        String?         // SEO başlık
+  seoAciklama      String?         // SEO açıklama
+  anahtarKelimeler String[]        // Arama anahtar kelimeleri
+  
+  // Üretim Bilgileri
+  uretimSuresi     Int?            // Üretim süresi (dakika)
+  rafOmru          Int?            // Raf ömrü (gün)
+  saklamaKosullari String?         // Saklama koşulları
+  
+  // Maliyet Bilgileri
+  maliyetFiyati    Float?          // Maliyet fiyatı
+  karMarji         Float?          // Kar marjı (%)
+  
+  // Tarih Bilgileri
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  createdBy        Int?            // Oluşturan kullanıcı
+  updatedBy        Int?            // Güncelleyen kullanıcı
+  
+  // İlişkiler
   fiyatlar         Fiyat[]
   siparisKalemleri SiparisKalemi[]
   recipes          Recipe[]
   ozelTepsiIcerikleri OzelTepsiIcerik[]
+  
+  // İndeksler
+  @@index([kategoriId])
+  @@index([aktif])
+  @@index([satisaUygun])
+  @@index([stokKodu])
+  @@index([barkod])
 }
 
 model Fiyat {
@@ -70,13 +149,21 @@ model Fiyat {
   urun          Urun      @relation(fields: [urunId], references: [id], onDelete: Cascade)
   fiyat         Float
   birim         String    // "KG", "Adet" vb.
+  fiyatTipi     String    @default("normal") // "normal", "kampanya", "toptan", "perakende"
+  minMiktar     Float?    // Minimum miktar (toptan için)
+  maxMiktar     Float?    // Maximum miktar
+  iskonto       Float?    @default(0) // İskonto oranı
+  vergiOrani    Float?    @default(18) // KDV oranı
   gecerliTarih  DateTime  @db.Date // Başlangıç tarihi
-  bitisTarihi   DateTime? @db.Date // <<< TEKRAR EKLENDİ: Bitiş tarihi (null olabilir)
+  bitisTarihi   DateTime? @db.Date // Bitiş tarihi (null olabilir)
+  aktif         Boolean   @default(true)
   createdAt     DateTime  @default(now())
+  createdBy     Int?      // Oluşturan kullanıcı
 
   @@unique([urunId, birim, gecerliTarih]) // Başlangıç tarihi hala unique olmalı
+  @@index([aktif])
+  @@index([fiyatTipi])
 }
-
 
 // --- Ana Modeller ---
 model Siparis {

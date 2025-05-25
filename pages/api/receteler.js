@@ -2,8 +2,8 @@ import prisma from '../../lib/prisma';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     if (req.method === 'GET') {
@@ -45,9 +45,6 @@ export default async function handler(req, res) {
             console.log('API /api/receteler dönen reçete sayısı:', enriched.length, 'IDler:', enriched.map(r => r.id));
             return res.status(200).json(enriched);
         } catch (error) {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             console.error('Reçeteler GET hatası:', error);
             return res.status(500).json({ message: 'Reçeteler listelenirken hata oluştu.', error: error.message });
         }
@@ -72,9 +69,6 @@ export default async function handler(req, res) {
             });
             return res.status(201).json(created);
         } catch (error) {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             console.error('Reçeteler POST hatası:', error);
             return res.status(500).json({ message: 'Reçete eklenirken hata oluştu.', error: error.message });
         }
@@ -102,9 +96,6 @@ export default async function handler(req, res) {
             });
             return res.status(200).json(updated);
         } catch (error) {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'PUT, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             console.error('Reçeteler PUT hatası:', error);
             return res.status(500).json({ message: 'Reçete güncellenirken hata oluştu.', error: error.message });
         }
@@ -119,9 +110,6 @@ export default async function handler(req, res) {
             await prisma.recipe.delete({ where: { id } });
             return res.status(204).end();
         } catch (error) {
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'DELETE, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             console.error('Reçeteler DELETE hatası:', error);
             return res.status(500).json({ message: 'Reçete silinirken hata oluştu.', error: error.message });
         }
