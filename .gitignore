@@ -1,5 +1,39 @@
-node_modules
-# Keep environment variables out of version control
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment variables
 .env
-.next
-.vscode
+.env.local
+.env.production.local
+
+# Build output
+.next/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+
+# Database
+*.db
+*.sqlite
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# PM2
+.pm2/
+
+# Temporary files
+*.tmp
+*.temp
