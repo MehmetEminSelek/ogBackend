@@ -5,7 +5,7 @@ import { verifyAuth } from '../../../lib/auth';
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') return res.status(200).end();
 
     let user;
@@ -40,27 +40,15 @@ export default async function handler(req, res) {
 
     if (req.method === 'DELETE') {
         const { id, ids } = req.body;
-        if (ids && Array.isArray(ids)) {
-            if (user.role !== 'superadmin' && user.role !== 'admin') return res.status(403).json({ message: 'Yetkisiz.' });
-            let filteredIds = ids;
-            if (user.role !== 'superadmin') {
-                const usersToDelete = await prisma.user.findMany({ where: { id: { in: ids } } });
-                filteredIds = usersToDelete.filter(u => u.role !== 'admin' && u.role !== 'superadmin').map(u => u.id);
-            } else {
-                filteredIds = ids.filter(uid => uid !== user.id);
-            }
-            await prisma.user.deleteMany({ where: { id: { in: filteredIds } } });
-            return res.status(200).json({ deleted: filteredIds.length });
+        if (id) {
+            await prisma.user.delete({ where: { id } });
+            return res.status(204).end();
+        } else if (ids && Array.isArray(ids)) {
+            await prisma.user.deleteMany({ where: { id: { in: ids } } });
+            return res.status(204).end();
+        } else {
+            return res.status(400).json({ message: 'id veya ids zorunludur.' });
         }
-        if (!id) return res.status(400).json({ message: 'id zorunludur.' });
-        if (user.role !== 'superadmin') {
-            const u = await prisma.user.findUnique({ where: { id } });
-            if (!u || u.role === 'admin' || u.role === 'superadmin') return res.status(403).json({ message: 'Yetkisiz.' });
-        } else if (id === user.id) {
-            return res.status(403).json({ message: 'Kendi hesabınızı silemezsiniz.' });
-        }
-        await prisma.user.delete({ where: { id } });
-        return res.status(204).end();
     }
 
     res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS']);
