@@ -119,7 +119,7 @@ export default async function handler(req, res) {
     // CORS, OPTIONS, ID kontrolü...
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     if (req.method === 'OPTIONS') { return res.status(200).end(); }
     const idQueryParam = req.query.id;
     const id = parseInt(idQueryParam);

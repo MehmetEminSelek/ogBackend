@@ -5,9 +5,9 @@ import prisma from '../../lib/prisma'; // Prisma Client import yolunu kontrol et
 
 export default async function handler(req, res) {
   // CORS ve OPTIONS Handling
-  res.setHeader('Access-Control-Allow-Origin', '*'); // Production'da domain belirt
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS'); // Sadece GET ve OPTIONS
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     console.log('OPTIONS /api/dropdown isteği yanıtlandı.');
