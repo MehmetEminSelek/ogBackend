@@ -24,7 +24,15 @@ mkdir -p logs
 echo "📝 Creating production .env..."
 cp .env.production .env
 
-# 6. Start with PM2
+# 6. Create admin user
+echo "👤 Creating admin user..."
+node scripts/create-admin.js
+
+# 7. Seed example data
+echo "🌱 Seeding example data..."
+node scripts/seed-data.js
+
+# 8. Start with PM2
 echo "🚀 Starting application with PM2..."
 npm install -g pm2
 pm2 start ecosystem.config.js
