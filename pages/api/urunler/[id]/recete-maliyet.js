@@ -76,7 +76,7 @@ export default async function handler(req, res) {
                     miktarGram: malzeme.miktarGram,
                     birimMaliyet: malzemeMaliyeti, // ₺/KG
                     toplamMaliyet: malzemeToplam,  // TL
-                    yuzde: malzeme.percentage || 0
+                    yuzde: 0 // RecipeIngredient modelinde percentage field'ı yok
                 });
             }
 

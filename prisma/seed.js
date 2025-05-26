@@ -463,12 +463,41 @@ async function seedReceteler(prisma) {
     urunAdMap[normalize(urun.ad)] = urun.id;
   }
 
+  // Manuel eşleştirme tablosu
+  const manuelEslestirme = {
+    'Peynirli Su Boregi (UR)': 'Antep Peynirli Su Böreği',
+    'Ezme (UR)': 'Fıstık Ezmesi',
+    'Dolama (UR)': 'Dolama',
+    'Burma Kadayıf (UR)': 'Burma Kadayıf',
+    'Midye (UR)': 'Midye',
+    'Havuç Dilimi (UR)': 'Havuç Dilimi',
+    'Bülbül Yuvası (UR)': 'Bülbül Yuvası',
+    'Özel Kare Baklava (UR)': 'Özel Kare',
+    'Fıstıklı Kuru Baklava (UR)': 'Kuru Baklava',
+    'Fıstıklı Yaş Baklava (UR)': 'Yaş Baklava',
+    'Cevizli Baklava (UR)': 'Cevizli Yaş Baklava'
+  };
+
   for (const urunAd in grouped) {
-    const normAd = normalize(urunAd);
-    const urunId = urunAdMap[normAd] || null;
+    let urunId = null;
+
+    // Önce manuel eşleştirmeyi kontrol et
+    const manuelEslestirilenAd = manuelEslestirme[urunAd];
+    if (manuelEslestirilenAd) {
+      const normManuelAd = normalize(manuelEslestirilenAd);
+      urunId = urunAdMap[normManuelAd];
+    }
+
+    // Manuel eşleştirme yoksa normal eşleştirmeyi dene
+    if (!urunId) {
+      const normAd = normalize(urunAd);
+      urunId = urunAdMap[normAd];
+    }
+
     if (!urunId) {
       console.warn('Eşleşmeyen reçete:', urunAd);
     }
+
     const recipe = await prisma.recipe.create({
       data: {
         name: urunAd,
