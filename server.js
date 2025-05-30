@@ -5,7 +5,7 @@ const next = require('next');
 const { initSocket } = require('./lib/socket-commonjs.js');
 
 const dev = process.env.NODE_ENV !== 'production';
-const hostname = 'localhost';
+const hostname = '0.0.0.0'; // Tüm IP'lerde dinle
 const port = process.env.PORT || 3000;
 
 const app = next({ dev, hostname, port });
@@ -24,16 +24,10 @@ app.prepare().then(() => {
     });
 
     // Initialize Socket.IO
-    const io = initSocket(server);
-    console.log('🚀 Socket.IO server initialized');
+    initSocket(server);
 
-    server
-        .once('error', (err) => {
-            console.error(err);
-            process.exit(1);
-        })
-        .listen(port, () => {
-            console.log(`🚀 Server ready on http://${hostname}:${port}`);
-            console.log(`🔌 Socket.IO ready for real-time connections`);
-        });
+    server.listen(port, hostname, (err) => {
+        if (err) throw err;
+        console.log(`🚀 Server ready on http://${hostname}:${port}`);
+    });
 }); 

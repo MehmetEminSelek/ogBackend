@@ -1,47 +1,29 @@
-name: Deploy to Production
+name: Deploy Backend to Production
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-        cache: 'npm'
-
-    - name: Install Dependencies
-      run: npm ci
-
-    - name: Generate Prisma Client
-      run: npx prisma generate
-
-    - name: Run Tests
-      run: npm test || true
-
-    - name: Build Project
-      run: npm run build
 
     - name: Deploy to Hostinger
       uses: appleboy/ssh-action@master
       with:
         host: ${{ secrets.HOSTINGER_HOST }}
         username: ${{ secrets.HOSTINGER_USERNAME }}
-        password: ${{ secrets.HOSTINGER_PASSWORD }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.HOSTINGER_PORT }}
         script: |
-          cd ${{ secrets.HOSTINGER_PATH }}
+          cd /home/ogsiparis.com/ogBackend
           git pull origin main
-          npm ci --production
-          npx prisma migrate deploy
-          npm run build
-          pm2 restart all 
+          npm install --production
+          npx prisma generate
+          npx prisma db push
+          pm2 restart og-backend || pm2 start server.js --name og-backend --env production
+          pm2 save 
