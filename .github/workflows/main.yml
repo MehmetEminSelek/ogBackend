@@ -21,9 +21,37 @@ jobs:
         port: ${{ secrets.HOSTINGER_PORT }}
         script: |
           cd /home/ogsiparis.com/ogBackend
+          
+          # Git pull
           git pull origin main
+          
+          # Update environment file
+          cat > .env << 'EOF'
+          # Database
+          DATABASE_URL="postgresql://ogform:secret@localhost:5432/ogformdb?schema=public"
+          
+          # JWT
+          JWT_SECRET="og-siparis-super-secret-jwt-key-production-2024-very-long-and-secure"
+          
+          # Environment
+          NODE_ENV=production
+          PORT=3000
+          
+          # API URLs (HTTPS)
+          NEXT_PUBLIC_API_URL=https://ogsiparis.com:3000/api
+          CORS_ORIGIN=https://ogsiparis.com
+          EOF
+          
+          # Install dependencies
           npm install --production
+          
+          # Update Prisma
           npx prisma generate
           npx prisma db push
+          
+          # Restart with PM2
           pm2 restart og-backend || pm2 start server.js --name og-backend --env production
-          pm2 save 
+          pm2 save
+          
+          # Check logs
+          pm2 logs og-backend --lines 20 
