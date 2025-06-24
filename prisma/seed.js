@@ -358,82 +358,121 @@ async function seedReceteler(prisma) {
   await prisma.recipeIngredient.deleteMany();
   await prisma.recipe.deleteMany();
 
-  // Sadece istenen 17 reçete ve içerikleri:
+  // Doğru reçete listesi (verdiğiniz listeye göre):
   const receteler = [
     // PEYNIRLI SU BOREGI (UR)
-    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM012', miktarGram: 62.81 },
-    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'YM001', miktarGram: 592.96 },
-    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM001', miktarGram: 56.78 },
-    { urunAd: 'Peynirli Su Boregi (UR)', stokKod: 'HM010', miktarGram: 6.03 },
+    { urunAd: 'PEYNIRLI SU BOREGI (UR)', stokKod: 'HM012', miktarGram: 62.81 }, // SADE YAG
+    { urunAd: 'PEYNIRLI SU BOREGI (UR)', stokKod: 'YM001', miktarGram: 592.96 }, // HAMUR (YM)
+    { urunAd: 'PEYNIRLI SU BOREGI (UR)', stokKod: 'HM001', miktarGram: 56.78 }, // ANTEP PEYNIRI
+    { urunAd: 'PEYNIRLI SU BOREGI (UR)', stokKod: 'HM010', miktarGram: 6.03 }, // MAYDANOZ
+
     // EZME (UR)
-    { urunAd: 'Ezme (UR)', stokKod: 'HM006', miktarGram: 381.68 },
-    { urunAd: 'Ezme (UR)', stokKod: 'HM017', miktarGram: 477.1 },
-    { urunAd: 'Ezme (UR)', stokKod: 'HM014', miktarGram: 238.55 },
-    { urunAd: 'Ezme (UR)', stokKod: 'HM003', miktarGram: 95.42 },
-    // FISTIKLI KURABIYE
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM004', miktarGram: 203.05 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM017', miktarGram: 194.59 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM012', miktarGram: 169.2 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM006', miktarGram: 274.96 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM019', miktarGram: 17.85 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM013', miktarGram: 1.1 },
-    { urunAd: 'Fıstıklı Kurabiye', stokKod: 'HM008', miktarGram: 135.36 },
+    { urunAd: 'EZME (UR)', stokKod: 'HM006', miktarGram: 381.68 }, // FISTIK
+    { urunAd: 'EZME (UR)', stokKod: 'HM017', miktarGram: 477.1 }, // TOZ SEKER
+    { urunAd: 'EZME (UR)', stokKod: 'HM014', miktarGram: 238.55 }, // SU
+    { urunAd: 'EZME (UR)', stokKod: 'HM003', miktarGram: 95.42 }, // GLIKOZ
+
+    // FISTIKLI KURABİYE
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM004', miktarGram: 203.05 }, // IRMIK NO:0
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM017', miktarGram: 194.59 }, // TOZ SEKER
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM012', miktarGram: 169.2 }, // SADE YAG
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM006', miktarGram: 274.96 }, // FISTIK
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM019', miktarGram: 17.85 }, // YOGURT
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM013', miktarGram: 1.1 }, // SODA GR
+    { urunAd: 'FISTIKLI KURABİYE', stokKod: 'HM008', miktarGram: 135.36 }, // KARAKOYUNLU UN
+
     // SADE KURABIYE
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM008', miktarGram: 193 },
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM005', miktarGram: 193 },
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM017', miktarGram: 193 },
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM012', miktarGram: 193 },
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM019', miktarGram: 96.77 },
-    { urunAd: 'Sade Kurabiye', stokKod: 'HM013', miktarGram: 9.68 },
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM008', miktarGram: 193 }, // KARAKOYUNLU UN
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM004', miktarGram: 289.51 }, // IRMIK NO:0
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM017', miktarGram: 277.44 }, // TOZ SEKER
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM012', miktarGram: 217.13 }, // SADE YAG
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM019', miktarGram: 25.21 }, // YOGURT
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM013', miktarGram: 1.69 }, // SODA GR
+    { urunAd: 'SADE KURABIYE', stokKod: 'HM006', miktarGram: 18.09 }, // FISTIK
+
     // DOLAMA (UR)
-    { urunAd: 'Dolama (UR)', stokKod: 'YM001', miktarGram: 148.76 },
-    { urunAd: 'Dolama (UR)', stokKod: 'HM012', miktarGram: 292.27 },
-    { urunAd: 'Dolama (UR)', stokKod: 'HM006', miktarGram: 448.48 },
-    { urunAd: 'Dolama (UR)', stokKod: 'YM003', miktarGram: 243.9 },
+    { urunAd: 'DOLAMA (UR)', stokKod: 'YM001', miktarGram: 148.78 }, // HAMUR (YM)
+    { urunAd: 'DOLAMA (UR)', stokKod: 'HM012', miktarGram: 269.27 }, // SADE YAG
+    { urunAd: 'DOLAMA (UR)', stokKod: 'HM006', miktarGram: 444.88 }, // FISTIK
+    { urunAd: 'DOLAMA (UR)', stokKod: 'YM003', miktarGram: 243.9 }, // SERBET (YM)
+
     // BURMA KADAYIF (UR)
-    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM012', miktarGram: 327.7 },
-    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM006', miktarGram: 339.29 },
-    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'YM003', miktarGram: 332.99 },
-    { urunAd: 'Burma Kadayıf (UR)', stokKod: 'HM007', miktarGram: 272.63 },
-    // MİDYE (UR)
-    { urunAd: 'Midye (UR)', stokKod: 'YM001', miktarGram: 148.76 },
-    { urunAd: 'Midye (UR)', stokKod: 'HM012', miktarGram: 246.31 },
-    { urunAd: 'Midye (UR)', stokKod: 'HM006', miktarGram: 246.31 },
-    { urunAd: 'Midye (UR)', stokKod: 'YM003', miktarGram: 246.31 },
-    { urunAd: 'Midye (UR)', stokKod: 'YM002', miktarGram: 109.85 },
-    // HAVUÇ DİLİMİ (UR)
-    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM001', miktarGram: 117.79 },
-    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM002', miktarGram: 125.48 },
-    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'HM012', miktarGram: 202.88 },
-    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'HM006', miktarGram: 202.88 },
-    { urunAd: 'Havuç Dilimi (UR)', stokKod: 'YM003', miktarGram: 240.38 },
-    // BÜLBÜL YUVASI (UR)
-    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'YM001', miktarGram: 248.43 },
-    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'HM012', miktarGram: 174.42 },
-    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'HM006', miktarGram: 254.83 },
-    { urunAd: 'Bülbül Yuvası (UR)', stokKod: 'YM003', miktarGram: 322.58 },
-    // ÖZEL KARE BAKLAVA (UR)
-    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM001', miktarGram: 240.19 },
-    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM002', miktarGram: 187.62 },
-    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'HM012', miktarGram: 187.62 },
-    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'HM006', miktarGram: 240.19 },
-    { urunAd: 'Özel Kare Baklava (UR)', stokKod: 'YM003', miktarGram: 243.89 },
+    { urunAd: 'BURMA KADAYIF (UR)', stokKod: 'HM012', miktarGram: 327.78 }, // SADE YAG
+    { urunAd: 'BURMA KADAYIF (UR)', stokKod: 'HM006', miktarGram: 335.07 }, // FISTIK
+    { urunAd: 'BURMA KADAYIF (UR)', stokKod: 'YM003', miktarGram: 332.99 }, // SERBET (YM)
+    { urunAd: 'BURMA KADAYIF (UR)', stokKod: 'HM007', miktarGram: 272.63 }, // KADAYIF
+
+    // MIDYE (UR)
+    { urunAd: 'MIDYE (UR)', stokKod: 'YM001', miktarGram: 162.56 }, // HAMUR (YM)
+    { urunAd: 'MIDYE (UR)', stokKod: 'HM012', miktarGram: 172.41 }, // SADE YAG
+    { urunAd: 'MIDYE (UR)', stokKod: 'HM006', miktarGram: 359.61 }, // FISTIK
+    { urunAd: 'MIDYE (UR)', stokKod: 'YM003', miktarGram: 246.31 }, // SERBET (YM)
+    { urunAd: 'MIDYE (UR)', stokKod: 'YM002', miktarGram: 109.85 }, // KAYMAK (YM) - %6 fire ile
+
+    // HAVUC DILIMI (UR)
+    { urunAd: 'HAVUC DILIMI (UR)', stokKod: 'YM001', miktarGram: 253.21 }, // HAMUR (YM)
+    { urunAd: 'HAVUC DILIMI (UR)', stokKod: 'YM002', miktarGram: 148.62 }, // KAYMAK (YM) - %6 fire ile
+    { urunAd: 'HAVUC DILIMI (UR)', stokKod: 'HM012', miktarGram: 480.28 }, // SADE YAG
+    { urunAd: 'HAVUC DILIMI (UR)', stokKod: 'HM006', miktarGram: 165.14 }, // FISTIK
+    { urunAd: 'HAVUC DILIMI (UR)', stokKod: 'YM003', miktarGram: 252.29 }, // SERBET (YM)
+
+    // SOBIYET (UR)
+    { urunAd: 'SOBIYET (UR)', stokKod: 'YM001', miktarGram: 188.94 }, // HAMUR (YM)
+    { urunAd: 'SOBIYET (UR)', stokKod: 'YM002', miktarGram: 125.48 }, // KAYMAK (YM) - %6 fire ile
+    { urunAd: 'SOBIYET (UR)', stokKod: 'HM012', miktarGram: 279.33 }, // SADE YAG
+    { urunAd: 'SOBIYET (UR)', stokKod: 'HM006', miktarGram: 202.88 }, // FISTIK
+    { urunAd: 'SOBIYET (UR)', stokKod: 'YM003', miktarGram: 240.38 }, // SERBET (YM)
+
+    // BULBUL YUVASI (UR)
+    { urunAd: 'BULBUL YUVASI (UR)', stokKod: 'YM001', miktarGram: 248.39 }, // HAMUR (YM)
+    { urunAd: 'BULBUL YUVASI (UR)', stokKod: 'HM012', miktarGram: 322.58 }, // SADE YAG
+    { urunAd: 'BULBUL YUVASI (UR)', stokKod: 'HM006', miktarGram: 177.42 }, // FISTIK
+    { urunAd: 'BULBUL YUVASI (UR)', stokKod: 'YM003', miktarGram: 322.58 }, // SERBET (YM)
+
+    // OZEL KARE BAKLAVA (UR)
+    { urunAd: 'OZEL KARE BAKLAVA (UR)', stokKod: 'YM001', miktarGram: 240.19 }, // HAMUR (YM)
+    { urunAd: 'OZEL KARE BAKLAVA (UR)', stokKod: 'YM002', miktarGram: 127.98 }, // KAYMAK (YM) - %6 fire ile
+    { urunAd: 'OZEL KARE BAKLAVA (UR)', stokKod: 'HM012', miktarGram: 260.28 }, // SADE YAG
+    { urunAd: 'OZEL KARE BAKLAVA (UR)', stokKod: 'HM006', miktarGram: 183.62 }, // FISTIK
+    { urunAd: 'OZEL KARE BAKLAVA (UR)', stokKod: 'YM003', miktarGram: 243.89 }, // SERBET (YM)
+
     // FISTIKLI KURU BAKLAVA (UR)
-    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'YM001', miktarGram: 335.16 },
-    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'HM012', miktarGram: 385.4 },
-    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'HM006', miktarGram: 385.4 },
-    { urunAd: 'Fıstıklı Kuru Baklava (UR)', stokKod: 'YM003', miktarGram: 385.4 },
-    // FISTIKLI YAŞ BAKLAVA (UR)
-    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'YM001', miktarGram: 294.43 },
-    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'HM012', miktarGram: 338.56 },
-    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'HM006', miktarGram: 338.56 },
-    { urunAd: 'Fıstıklı Yaş Baklava (UR)', stokKod: 'YM003', miktarGram: 338.56 },
-    // CEVİZLİ BAKLAVA (UR)
-    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM001', miktarGram: 294.43 },
-    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM002', miktarGram: 129.53 },
-    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'HM012', miktarGram: 129.53 },
-    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'HM002', miktarGram: 129.53 },
-    { urunAd: 'Cevizli Baklava (UR)', stokKod: 'YM003', miktarGram: 338.56 },
+    { urunAd: 'FISTIKLI KURU BAKLAVA (UR)', stokKod: 'YM001', miktarGram: 335.16 }, // HAMUR (YM)
+    { urunAd: 'FISTIKLI KURU BAKLAVA (UR)', stokKod: 'HM012', miktarGram: 250.89 }, // SADE YAG
+    { urunAd: 'FISTIKLI KURU BAKLAVA (UR)', stokKod: 'HM006', miktarGram: 109.53 }, // FISTIK
+    { urunAd: 'FISTIKLI KURU BAKLAVA (UR)', stokKod: 'YM003', miktarGram: 385.4 }, // SERBET (YM)
+
+    // FISTIKLI YAS BAKLAVA (UR)
+    { urunAd: 'FISTIKLI YAS BAKLAVA (UR)', stokKod: 'YM001', miktarGram: 294.43 }, // HAMUR (YM)
+    { urunAd: 'FISTIKLI YAS BAKLAVA (UR)', stokKod: 'YM002', miktarGram: 129.25 }, // KAYMAK (YM) - %6 fire ile
+    { urunAd: 'FISTIKLI YAS BAKLAVA (UR)', stokKod: 'HM012', miktarGram: 220.4 }, // SADE YAG
+    { urunAd: 'FISTIKLI YAS BAKLAVA (UR)', stokKod: 'HM006', miktarGram: 96.21 }, // FISTIK
+    { urunAd: 'FISTIKLI YAS BAKLAVA (UR)', stokKod: 'YM003', miktarGram: 338.56 }, // SERBET (YM)
+
+    // CEVIZLI BAKLAVA (UR)
+    { urunAd: 'CEVIZLI BAKLAVA (UR)', stokKod: 'YM001', miktarGram: 294.43 }, // HAMUR (YM)
+    { urunAd: 'CEVIZLI BAKLAVA (UR)', stokKod: 'YM002', miktarGram: 129.25 }, // KAYMAK (YM) - %6 fire ile
+    { urunAd: 'CEVIZLI BAKLAVA (UR)', stokKod: 'HM012', miktarGram: 220.4 }, // SADE YAG
+    { urunAd: 'CEVIZLI BAKLAVA (UR)', stokKod: 'HM002', miktarGram: 96.21 }, // CEVIZ
+    { urunAd: 'CEVIZLI BAKLAVA (UR)', stokKod: 'YM003', miktarGram: 338.56 }, // SERBET (YM)
+
+    // YARI MAMULLER
+    // HAMUR (YM)
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM008', miktarGram: 339 }, // KARAKOYUNLU UN
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM016', miktarGram: 339 }, // TEKSIN UN
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM020', miktarGram: 2.5 }, // YUMURTA (adet)
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM014', miktarGram: 185 }, // SU (ml)
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM018', miktarGram: 7 }, // TUZ
+    { urunAd: 'HAMUR (YM)', stokKod: 'HM011', miktarGram: 222 }, // NISASTA
+
+    // SERBET (YM)
+    { urunAd: 'SERBET (YM)', stokKod: 'HM017', miktarGram: 848.42 }, // TOZ SEKER
+    { urunAd: 'SERBET (YM)', stokKod: 'HM014', miktarGram: 206.45 }, // SU (lt)
+    { urunAd: 'SERBET (YM)', stokKod: 'HM009', miktarGram: 2.09 }, // LIMON
+
+    // KAYMAK (YM)
+    { urunAd: 'KAYMAK (YM)', stokKod: 'HM005', miktarGram: 89.57 }, // IRMIK NO:3
+    { urunAd: 'KAYMAK (YM)', stokKod: 'HM015', miktarGram: 913.57 }, // SUT (lt)
   ];
 
   // Ürün adlarına göre grupla
@@ -463,19 +502,25 @@ async function seedReceteler(prisma) {
     urunAdMap[normalize(urun.ad)] = urun.id;
   }
 
-  // Manuel eşleştirme tablosu
+  // Manuel eşleştirme tablosu - güncellendi
   const manuelEslestirme = {
-    'Peynirli Su Boregi (UR)': 'Antep Peynirli Su Böreği',
-    'Ezme (UR)': 'Fıstık Ezmesi',
-    'Dolama (UR)': 'Dolama',
-    'Burma Kadayıf (UR)': 'Burma Kadayıf',
-    'Midye (UR)': 'Midye',
-    'Havuç Dilimi (UR)': 'Havuç Dilimi',
-    'Bülbül Yuvası (UR)': 'Bülbül Yuvası',
-    'Özel Kare Baklava (UR)': 'Özel Kare',
-    'Fıstıklı Kuru Baklava (UR)': 'Kuru Baklava',
-    'Fıstıklı Yaş Baklava (UR)': 'Yaş Baklava',
-    'Cevizli Baklava (UR)': 'Cevizli Yaş Baklava'
+    'PEYNIRLI SU BOREGI (UR)': 'Antep Peynirli Su Böreği',
+    'EZME (UR)': 'Fıstık Ezmesi',
+    'FISTIKLI KURABİYE': 'Fıstıklı Kurabiye',
+    'SADE KURABIYE': 'Sade Kurabiye',
+    'DOLAMA (UR)': 'Dolama',
+    'BURMA KADAYIF (UR)': 'Burma Kadayıf',
+    'MIDYE (UR)': 'Midye',
+    'HAVUC DILIMI (UR)': 'Havuç Dilimi',
+    'SOBIYET (UR)': 'Şöbiyet',
+    'BULBUL YUVASI (UR)': 'Bülbül Yuvası',
+    'OZEL KARE BAKLAVA (UR)': 'Özel Kare',
+    'FISTIKLI KURU BAKLAVA (UR)': 'Kuru Baklava',
+    'FISTIKLI YAS BAKLAVA (UR)': 'Yaş Baklava',
+    'CEVIZLI BAKLAVA (UR)': 'Cevizli Yaş Baklava',
+    'HAMUR (YM)': 'Hamur',
+    'SERBET (YM)': 'Şerbet',
+    'KAYMAK (YM)': 'Kaymak'
   };
 
   for (const urunAd in grouped) {
@@ -509,7 +554,7 @@ async function seedReceteler(prisma) {
     });
     console.log('Reçete eklendi:', urunAd, '-> urunId:', urunId);
   }
-  console.log('Reçeteler yeni modele göre başarıyla eklendi.');
+  console.log('Reçeteler doğru listeye göre başarıyla eklendi.');
 }
 
 async function seedMehmetEminSelek(prisma) {

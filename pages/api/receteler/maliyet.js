@@ -30,24 +30,11 @@ async function calculateRecipeCost(recipeId, tx = prisma) {
 
         // 2. Her ingredient için maliyet hesapla
         for (const ingredient of recipe.ingredients) {
-            let birimFiyat = 0;
-            let malzemeTipi = '';
-            let malzemeAdi = ingredient.stokKod;
-            let stokKodu = ingredient.stokKod;
-
-            // Stok koduna göre hammadde veya yarı mamül belirle
-            if (ingredient.stokKod.startsWith('HM')) {
-                malzemeTipi = 'Hammadde';
-                // Hammadde için sabit fiyat (şimdilik)
-                birimFiyat = getHammaddeFiyat(ingredient.stokKod);
-            } else if (ingredient.stokKod.startsWith('YM')) {
-                malzemeTipi = 'Yarı Mamül';
-                // Yarı mamül için sabit fiyat (şimdilik)
-                birimFiyat = getYariMamulFiyat(ingredient.stokKod);
-            }
+            // Dinamik malzeme fiyatını al
+            const malzemeFiyati = await getMalzemeFiyati(ingredient.stokKod, tx);
 
             // KG fiyatını gram fiyatına çevir
-            const gramFiyat = birimFiyat / 1000;
+            const gramFiyat = malzemeFiyati.fiyat / 1000;
 
             // Recipe'deki miktar ile çarp
             const malzemeMaliyet = gramFiyat * ingredient.miktarGram;
@@ -61,19 +48,19 @@ async function calculateRecipeCost(recipeId, tx = prisma) {
             // Detay ekle
             maliyetDetaylari.push({
                 malzemeId: ingredient.id,
-                stokKodu,
-                malzemeTipi,
-                malzemeAdi,
+                stokKodu: ingredient.stokKod,
+                malzemeTipi: malzemeFiyati.tip,
+                malzemeAdi: malzemeFiyati.ad,
                 miktar: ingredient.miktarGram.toFixed(2),
                 birim: 'g',
-                birimFiyat: birimFiyat,
+                birimFiyat: malzemeFiyati.fiyat,
                 birimFiyatBirim: 'KG',
                 toplamMaliyet: malzemeMaliyet.toFixed(2),
-                yuzde: toplamMaliyet > 0 ? ((malzemeMaliyet / toplamMaliyet) * 100).toFixed(1) : '0'
+                yuzde: 0 // Şimdilik 0, sonra hesaplanacak
             });
         }
 
-        // Yüzdeleri yeniden hesapla (toplam maliyet belli olduktan sonra)
+        // Yüzdeleri hesapla (toplam maliyet belli olduktan sonra)
         maliyetDetaylari.forEach(detay => {
             detay.yuzde = toplamMaliyet > 0 ? ((parseFloat(detay.toplamMaliyet) / toplamMaliyet) * 100).toFixed(1) : '0';
         });
@@ -119,8 +106,49 @@ async function calculateRecipeCost(recipeId, tx = prisma) {
     }
 }
 
-// Hammadde fiyatları (gerçekçi fiyatlar)
-function getHammaddeFiyat(stokKodu) {
+// Dinamik malzeme fiyatı alma fonksiyonu
+async function getMalzemeFiyati(stokKod, tx = prisma) {
+    // Önce hammadde tablosunda ara
+    const hammadde = await tx.hammadde.findUnique({
+        where: { kod: stokKod },
+        select: { ad: true, fiyat: true }
+    });
+
+    if (hammadde) {
+        return {
+            stokKod,
+            ad: hammadde.ad,
+            fiyat: hammadde.fiyat || getDefaultHammaddeFiyat(stokKod),
+            tip: 'Hammadde'
+        };
+    }
+
+    // Yarı mamul tablosunda ara
+    const yariMamul = await tx.yariMamul.findUnique({
+        where: { kod: stokKod },
+        select: { ad: true, fiyat: true }
+    });
+
+    if (yariMamul) {
+        return {
+            stokKod,
+            ad: yariMamul.ad,
+            fiyat: yariMamul.fiyat || getDefaultYariMamulFiyat(stokKod),
+            tip: 'Yarı Mamul'
+        };
+    }
+
+    // Bulunamadıysa varsayılan değer döndür
+    return {
+        stokKod,
+        ad: `Bilinmeyen Malzeme (${stokKod})`,
+        fiyat: 15.00, // Varsayılan fiyat
+        tip: 'Bilinmeyen'
+    };
+}
+
+// Varsayılan hammadde fiyatları
+function getDefaultHammaddeFiyat(stokKod) {
     const hammaddeFiyatlari = {
         'HM001': 15.00,   // Un
         'HM002': 25.00,   // Şeker
@@ -143,11 +171,11 @@ function getHammaddeFiyat(stokKodu) {
         'HM019': 19.00,   // Limon
         'HM020': 24.00,   // Portakal
     };
-    return hammaddeFiyatlari[stokKodu] || 15.00; // Varsayılan fiyat
+    return hammaddeFiyatlari[stokKod] || 15.00;
 }
 
-// Yarı mamül fiyatları (gerçekçi fiyatlar)
-function getYariMamulFiyat(stokKodu) {
+// Varsayılan yarı mamul fiyatları
+function getDefaultYariMamulFiyat(stokKod) {
     const yariMamulFiyatlari = {
         'YM001': 20.00,   // Şerbet
         'YM002': 35.00,   // Krema
@@ -160,7 +188,7 @@ function getYariMamulFiyat(stokKodu) {
         'YM009': 28.00,   // Karamel
         'YM010': 33.00,   // Çikolata Sosu
     };
-    return yariMamulFiyatlari[stokKodu] || 20.00; // Varsayılan fiyat
+    return yariMamulFiyatlari[stokKod] || 20.00;
 }
 
 // API endpoint handler

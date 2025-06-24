@@ -74,7 +74,7 @@ model Urun {
   id               Int             @id @default(autoincrement())
   ad               String          @unique
   kodu             String?         @unique
-  aciklama         String?         // Ürün açıklaması
+  aciklama         String?         @default("Açıklama...") // Ürün açıklaması
   kisaAciklama     String?         // Kısa açıklama
   kategoriId       Int?            // Kategori ilişkisi
   kategori         UrunKategori?   @relation(fields: [kategoriId], references: [id])

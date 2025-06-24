@@ -151,75 +151,106 @@ async function createFiyat(req, res) {
     }
 
     try {
-        // Aynı tarih aralığında çakışan fiyat var mı kontrol et
-        const cakisanFiyat = await prisma.fiyat.findFirst({
-            where: {
-                urunId: parseInt(urunId),
-                birim,
-                fiyatTipi,
-                aktif: true,
-                AND: [
-                    {
-                        OR: [
-                            { bitisTarihi: null },
-                            { bitisTarihi: { gte: new Date(gecerliTarih) } }
-                        ]
-                    },
-                    {
-                        gecerliTarih: {
-                            lte: bitisTarihi ? new Date(bitisTarihi) : new Date('2099-12-31')
+        // Transaction başlat
+        const result = await prisma.$transaction(async (tx) => {
+            // Aynı tarih aralığında çakışan fiyat var mı kontrol et
+            const cakisanFiyat = await tx.fiyat.findFirst({
+                where: {
+                    urunId: parseInt(urunId),
+                    birim,
+                    fiyatTipi,
+                    aktif: true,
+                    AND: [
+                        {
+                            OR: [
+                                { bitisTarihi: null },
+                                { bitisTarihi: { gte: new Date(gecerliTarih) } }
+                            ]
+                        },
+                        {
+                            gecerliTarih: {
+                                lte: bitisTarihi ? new Date(bitisTarihi) : new Date('2099-12-31')
+                            }
+                        }
+                    ]
+                }
+            });
+
+            if (cakisanFiyat) {
+                throw new Error('Bu tarih aralığında zaten aktif bir fiyat bulunmaktadır');
+            }
+
+            // Yeni fiyat eklendiğinde, aynı ürün ve birim için eski aktif fiyatları pasife al
+            await tx.fiyat.updateMany({
+                where: {
+                    urunId: parseInt(urunId),
+                    birim,
+                    fiyatTipi,
+                    aktif: true,
+                    // Yeni fiyatın geçerlilik tarihinden önce başlayan ve bitiş tarihi olmayan veya yeni fiyatın geçerlilik tarihinden sonra biten fiyatlar
+                    OR: [
+                        {
+                            gecerliTarih: { lt: new Date(gecerliTarih) },
+                            OR: [
+                                { bitisTarihi: null },
+                                { bitisTarihi: { gte: new Date(gecerliTarih) } }
+                            ]
+                        }
+                    ]
+                },
+                data: {
+                    aktif: false,
+                    bitisTarihi: new Date(gecerliTarih) // Eski fiyatın bitiş tarihini yeni fiyatın başlangıç tarihi yap
+                }
+            });
+
+            // Yeni fiyatı oluştur
+            const yeniFiyat = await tx.fiyat.create({
+                data: {
+                    urunId: parseInt(urunId),
+                    fiyat: parseFloat(fiyat),
+                    birim,
+                    fiyatTipi,
+                    minMiktar: minMiktar ? parseFloat(minMiktar) : null,
+                    maxMiktar: maxMiktar ? parseFloat(maxMiktar) : null,
+                    iskonto: parseFloat(iskonto),
+                    vergiOrani: parseFloat(vergiOrani),
+                    gecerliTarih: new Date(gecerliTarih),
+                    bitisTarihi: bitisTarihi ? new Date(bitisTarihi) : null,
+                    aktif,
+                    createdBy: createdBy ? parseInt(createdBy) : null
+                },
+                include: {
+                    urun: {
+                        select: {
+                            ad: true,
+                            kodu: true
                         }
                     }
-                ]
-            }
-        });
-
-        if (cakisanFiyat) {
-            return res.status(400).json({
-                error: 'Bu tarih aralığında zaten aktif bir fiyat bulunmaktadır'
-            });
-        }
-
-        const yeniFiyat = await prisma.fiyat.create({
-            data: {
-                urunId: parseInt(urunId),
-                fiyat: parseFloat(fiyat),
-                birim,
-                fiyatTipi,
-                minMiktar: minMiktar ? parseFloat(minMiktar) : null,
-                maxMiktar: maxMiktar ? parseFloat(maxMiktar) : null,
-                iskonto: parseFloat(iskonto),
-                vergiOrani: parseFloat(vergiOrani),
-                gecerliTarih: new Date(gecerliTarih),
-                bitisTarihi: bitisTarihi ? new Date(bitisTarihi) : null,
-                aktif,
-                createdBy: createdBy ? parseInt(createdBy) : null
-            },
-            include: {
-                urun: {
-                    select: {
-                        ad: true,
-                        kodu: true
-                    }
                 }
-            }
+            });
+
+            return yeniFiyat;
         });
 
         return res.status(201).json({
-            message: 'Fiyat başarıyla oluşturuldu',
-            fiyat: yeniFiyat
+            message: 'Fiyat başarıyla oluşturuldu ve eski fiyatlar pasife alındı',
+            fiyat: result
         });
 
     } catch (error) {
         console.error('❌ Fiyat oluşturma hatası:', error);
 
-        if (error.code === 'P2002') {
+        if (error.message.includes('aktif bir fiyat bulunmaktadır')) {
             return res.status(400).json({
-                error: 'Bu ürün için aynı birim ve tarihte zaten fiyat bulunmaktadır'
+                error: error.message
             });
         }
 
-        return res.status(500).json({ error: 'Fiyat oluşturulurken hata oluştu' });
+        return res.status(500).json({
+            error: 'Fiyat oluşturulurken hata oluştu',
+            details: error.message
+        });
     }
 }
 
@@ -233,6 +264,23 @@ async function updateFiyat(req, res) {
     }
 
     try {
+        // Önce mevcut fiyatı al
+        const mevcutFiyat = await prisma.fiyat.findUnique({
+            where: { id: parseInt(id) },
+            include: {
+                urun: {
+                    select: {
+                        ad: true,
+                        kodu: true
+                    }
+                }
+            }
+        });
+
+        if (!mevcutFiyat) {
+            return res.status(404).json({ error: 'Fiyat bulunamadı' });
+        }
+
         // Sayısal alanları dönüştür
         const processedData = { ...updateData };
 
@@ -264,37 +312,103 @@ async function updateFiyat(req, res) {
             processedData.createdBy = parseInt(processedData.createdBy);
         }
 
-        const guncellenenFiyat = await prisma.fiyat.update({
-            where: { id: parseInt(id) },
-            data: processedData,
-            include: {
-                urun: {
-                    select: {
-                        ad: true,
-                        kodu: true
+        // Transaction ile güncelleme
+        const result = await prisma.$transaction(async (tx) => {
+            // Eğer geçerlilik tarihi değişiyorsa, çakışma kontrolü yap
+            if (processedData.gecerliTarih &&
+                processedData.gecerliTarih.getTime() !== mevcutFiyat.gecerliTarih.getTime()) {
+
+                // Çakışan fiyat kontrolü (kendisi hariç)
+                const cakisanFiyat = await tx.fiyat.findFirst({
+                    where: {
+                        id: { not: parseInt(id) },
+                        urunId: processedData.urunId || mevcutFiyat.urunId,
+                        birim: processedData.birim || mevcutFiyat.birim,
+                        fiyatTipi: processedData.fiyatTipi || mevcutFiyat.fiyatTipi,
+                        aktif: true,
+                        AND: [
+                            {
+                                OR: [
+                                    { bitisTarihi: null },
+                                    { bitisTarihi: { gte: processedData.gecerliTarih } }
+                                ]
+                            },
+                            {
+                                gecerliTarih: {
+                                    lte: processedData.bitisTarihi ? processedData.bitisTarihi : new Date('2099-12-31')
+                                }
+                            }
+                        ]
+                    }
+                });
+
+                if (cakisanFiyat) {
+                    throw new Error('Bu tarih aralığında zaten aktif bir fiyat bulunmaktadır');
+                }
+
+                // Eski aktif fiyatları pasife al (kendisi hariç)
+                await tx.fiyat.updateMany({
+                    where: {
+                        id: { not: parseInt(id) },
+                        urunId: processedData.urunId || mevcutFiyat.urunId,
+                        birim: processedData.birim || mevcutFiyat.birim,
+                        fiyatTipi: processedData.fiyatTipi || mevcutFiyat.fiyatTipi,
+                        aktif: true,
+                        OR: [
+                            {
+                                gecerliTarih: { lt: processedData.gecerliTarih },
+                                OR: [
+                                    { bitisTarihi: null },
+                                    { bitisTarihi: { gte: processedData.gecerliTarih } }
+                                ]
+                            }
+                        ]
+                    },
+                    data: {
+                        aktif: false,
+                        bitisTarihi: processedData.gecerliTarih
+                    }
+                });
+            }
+
+            // Fiyatı güncelle
+            const guncellenenFiyat = await tx.fiyat.update({
+                where: { id: parseInt(id) },
+                data: processedData,
+                include: {
+                    urun: {
+                        select: {
+                            ad: true,
+                            kodu: true
+                        }
                     }
                 }
-            }
+            });
+
+            return guncellenenFiyat;
         });
 
         return res.status(200).json({
             message: 'Fiyat başarıyla güncellendi',
-            fiyat: guncellenenFiyat
+            fiyat: result
         });
 
     } catch (error) {
         console.error('❌ Fiyat güncelleme hatası:', error);
 
-        if (error.code === 'P2002') {
+        if (error.message.includes('aktif bir fiyat bulunmaktadır')) {
             return res.status(400).json({
-                error: 'Bu ürün için aynı birim ve tarihte zaten fiyat bulunmaktadır'
+                error: error.message
             });
         }
         if (error.code === 'P2025') {
             return res.status(404).json({ error: 'Fiyat bulunamadı' });
         }
 
-        return res.status(500).json({ error: 'Fiyat güncellenirken hata oluştu' });
+        return res.status(500).json({
+            error: 'Fiyat güncellenirken hata oluştu',
+            details: error.message
+        });
     }
 }
 

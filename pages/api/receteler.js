@@ -8,8 +8,17 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
         try {
+            const { urunId } = req.query;
+
+            // Filtreleme koşulları
+            const where = {};
+            if (urunId) {
+                where.urunId = parseInt(urunId);
+            }
+
             // Tüm reçeteleri, ilişkili ürün adı ve içerik (malzeme) listesiyle birlikte getir
             const recipes = await prisma.recipe.findMany({
+                where,
                 include: {
                     urun: { select: { ad: true } },
                     ingredients: true

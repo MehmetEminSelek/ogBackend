@@ -1,6 +1,8 @@
 {
-  "name": "prisma-backend",
+  "name": "og-siparis-backend",
   "version": "1.0.0",
+  "description": "OG Sipariş Yönetim Sistemi - Backend API",
+  "homepage": "https://ogsiparis.com",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -8,6 +10,7 @@
     "build": "next build",
     "start": "next start -p $PORT",
     "start:nextjs": "next start",
+    "start:prod": "NODE_ENV=production next start -p $PORT",
     "generate": "prisma generate",
     "pull": "prisma db pull",
     "lint": "next lint",
