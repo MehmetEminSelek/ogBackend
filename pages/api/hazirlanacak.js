@@ -18,28 +18,30 @@ export default async function handler(req, res) {
                 },
                 orderBy: { tarih: 'asc' },
                 include: {
+                    cari: {
+                        select: { ad: true, telefon: true }
+                    },
                     teslimatTuru: { select: { ad: true } },
                     sube: { select: { ad: true } },
                     kalemler: {
                         orderBy: { id: 'asc' },
-                        // <<< DEĞİŞİKLİK: Gerekli ID'ler ve ilişkili adlar seçiliyor >>>
-                        select: {
-                            id: true,
-                            miktar: true,
-                            birim: true,
-                            birimFiyat: true,
-                            // Doğrudan ID'leri seç
-                            ambalajId: true,
-                            urunId: true,
-                            kutuId: true,
-                            tepsiTavaId: true,
-                            // İlişkili adları da al (göstermek için)
-                            urun: { select: { ad: true } },
+                        include: {
+                            urun: {
+                                select: {
+                                    ad: true,
+                                    kodu: true,
+                                    maliyetFiyati: true,
+                                    recipes: {
+                                        include: {
+                                            ingredients: true
+                                        }
+                                    }
+                                }
+                            },
                             ambalaj: { select: { ad: true } },
                             kutu: { select: { ad: true } },
-                            tepsiTava: { select: { ad: true, fiyat: true } } // Tepsi fiyatını da alalım
+                            tepsiTava: { select: { ad: true, fiyat: true } }
                         }
-                        // <<< DEĞİŞİKLİK SONU >>>
                     }
                 }
             });

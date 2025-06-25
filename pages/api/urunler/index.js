@@ -4,7 +4,7 @@
 import prisma from '../../../lib/prisma';
 
 export default async function handler(req, res) {
-    // CORS ayarları
+    // CORS headers ekle
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -31,7 +31,8 @@ export default async function handler(req, res) {
         console.error('❌ Ürün API Hatası:', error);
         return res.status(500).json({
             error: 'Sunucu hatası oluştu',
-            details: error.message
+            details: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 }
@@ -62,7 +63,7 @@ async function getUrunler(req, res) {
     if (search) {
         where.OR = [
             { ad: { contains: search, mode: 'insensitive' } },
-            { kodu: { contains: search, mode: 'insensitive' } },
+            { kod: { contains: search, mode: 'insensitive' } },
             { aciklama: { contains: search, mode: 'insensitive' } },
             { stokKodu: { contains: search, mode: 'insensitive' } },
             { barkod: { contains: search, mode: 'insensitive' } }
@@ -135,7 +136,7 @@ async function getUrunler(req, res) {
                 _count: {
                     select: {
                         siparisKalemleri: true,
-                        recipes: true
+                        receteler: true
                     }
                 }
             }
@@ -146,7 +147,7 @@ async function getUrunler(req, res) {
             ...urun,
             guncelFiyat: urun.fiyatlar[0] || null,
             siparisAdedi: urun._count.siparisKalemleri,
-            receteAdedi: urun._count.recipes
+            receteAdedi: urun._count.receteler
         }));
 
         return res.status(200).json({
@@ -161,7 +162,10 @@ async function getUrunler(req, res) {
 
     } catch (error) {
         console.error('❌ Ürün listesi hatası:', error);
-        return res.status(500).json({ error: 'Ürünler listelenirken hata oluştu' });
+        return res.status(500).json({
+            error: 'Ürünler listelenirken hata oluştu',
+            details: error.message
+        });
     }
 }
 
@@ -370,7 +374,7 @@ async function deleteUrun(req, res) {
                 _count: {
                     select: {
                         siparisKalemleri: true,
-                        recipes: true,
+                        receteler: true,
                         ozelTepsiIcerikleri: true
                     }
                 }
@@ -383,7 +387,7 @@ async function deleteUrun(req, res) {
 
         // Kullanımda olan ürünü silmeye izin verme
         const toplamKullanim = urun._count.siparisKalemleri +
-            urun._count.recipes +
+            urun._count.receteler +
             urun._count.ozelTepsiIcerikleri;
 
         if (toplamKullanim > 0) {
@@ -391,7 +395,7 @@ async function deleteUrun(req, res) {
                 error: 'Bu ürün kullanımda olduğu için silinemez',
                 details: {
                     siparisKalemleri: urun._count.siparisKalemleri,
-                    recipes: urun._count.recipes,
+                    receteler: urun._count.receteler,
                     ozelTepsiIcerikleri: urun._count.ozelTepsiIcerikleri
                 }
             });

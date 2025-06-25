@@ -1,4 +1,8 @@
-// schema.prisma (Kullanıcı İsteğine Göre Güncellendi)
+// ===================================================================
+// 🏗️ ULTIMATE FOOD PRODUCTION & ORDER MANAGEMENT SYSTEM SCHEMA
+// ===================================================================
+// Redesigned by Ultimate System Engineer
+// 🎯 Goals: Data Integrity, Performance, Scalability, Maintainability
 
 generator client {
   provider = "prisma-client-js"
@@ -9,133 +13,328 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- Lookup Modelleri ---
-model TeslimatTuru {
-  id         Int       @id @default(autoincrement())
-  ad         String    @unique
-  kodu       String?
-  siparisler Siparis[]
+// ===================================================================
+// 👥 USER MANAGEMENT & AUTHENTICATION
+// ===================================================================
+
+model User {
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  username           String   @unique
+  passwordHash       String
+  ad                 String
+  soyad              String?
+  telefon            String?
+  role               Role     @default(USER)
+  aktif              Boolean  @default(true)
+  sonGiris           DateTime?
+  girisYili          Int?
+  sgkDurumu          String?
+  gunlukUcret        Float?
+  bolum              String?
+  unvan              String?
+  iseBaslamaTarihi   DateTime?
+  subeId             Int?
+  sube               Sube?    @relation(fields: [subeId], references: [id])
+  
+  // Audit fields
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  createdBy          Int?
+  
+  // Relations
+  olusturduguSiparisler   Siparis[] @relation("SiparisOlusturan")
+  onayladigiSiparisler    Siparis[] @relation("SiparisOnaylayan")
+  stokHareketleri         StokHareket[]
+  stokTransferleri        StokTransfer[]
+  fiyatGuncelleme         Fiyat[]
+  
+  @@index([role])
+  @@index([aktif])
+  @@index([subeId])
 }
+
+enum Role {
+  ADMIN
+  MANAGER
+  USER
+  PRODUCTION
+  SALES
+  ACCOUNTING
+}
+
+// ===================================================================
+// 📍 ORGANIZATIONAL STRUCTURE
+// ===================================================================
 
 model Sube {
-  id         Int       @id @default(autoincrement())
-  ad         String    @unique
-  kodu       String?
-  siparisler Siparis[]
-  cariler    Cari[]    // Cari ile ilişki
+  id                Int       @id @default(autoincrement())
+  ad                String    @unique
+  kod               String    @unique
+  adres             String?
+  telefon           String?
+  email             String?
+  mudur             String?
+  aktif             Boolean   @default(true)
+  siraNo            Int?
+  
+     // Relations
+   siparisler        Siparis[]
+   cariler           Cari[]
+   kullanicilar      User[]
+   stokTransferleri  StokTransfer[]
+   hedefSiparisler   Siparis[]       @relation("HedefSube")
+   kaynakTransferler StokTransfer[]  @relation("KaynakSube")
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([aktif])
 }
 
-model GonderenAliciTipi {
-  id         Int       @id @default(autoincrement())
-  ad         String    @unique
-  kodu       String?
-  siparisler Siparis[]
+model TeslimatTuru {
+  id                Int       @id @default(autoincrement())
+  ad                String    @unique
+  kod               String    @unique
+  aciklama          String?
+  varsayilanKargo   String?   // Default kargo şirketi
+  ekstraMaliyet     Float?    @default(0)
+  aktif             Boolean   @default(true)
+  siraNo            Int?
+  
+  // Relations
+  siparisler        Siparis[]
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([aktif])
 }
 
-model Ambalaj {
-  id               Int             @id @default(autoincrement())
-  ad               String          @unique
-  kodu             String?
-  siparisKalemleri SiparisKalemi[]
+// ===================================================================
+// 🏪 CUSTOMER MANAGEMENT (CRM)
+// ===================================================================
+
+model Cari {
+  id                Int           @id @default(autoincrement())
+  musteriKodu       String        @unique
+  ad                String
+  soyad             String?
+  unvan             String?       // Şirket unvanı
+  tipi              CariTipi      @default(BIREYSEL)
+  vergiNo           String?       @unique
+  tcNo              String?       @unique
+  
+  // Contact Info
+  telefon           String?
+  email             String?       
+  website           String?
+  
+  // Address Info
+  adres             String?
+  il                String?
+  ilce              String?
+  postaKodu         String?
+  
+  // Commercial Info
+  bakiye            Float         @default(0)
+  vadeGunu          Int?          @default(0)
+  kredLimiti        Float?        @default(0)
+  riskGrubu         String?       @default("Normal")
+  musteriSegmenti   String?       // Premium, Gold, Silver, Bronze
+  
+  // System Info
+  subeId            Int?
+  sube              Sube?         @relation(fields: [subeId], references: [id])
+  aktif             Boolean       @default(true)
+  ozelMusteriMi     Boolean       @default(false)
+  
+  // Relations
+  siparisler        Siparis[]
+  hareketler        CariHareket[]
+  odemeler          CariOdeme[]
+  
+  // Audit fields
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  createdBy         Int?
+  
+  @@index([tipi])
+  @@index([aktif])
+  @@index([subeId])
+  @@index([musteriKodu])
+  @@index([telefon])
+  @@index([email])
 }
 
-model TepsiTava {
-  id               Int             @id @default(autoincrement())
-  ad               String          @unique
-  kodu             String?
-  fiyat            Float?
-  siparisKalemleri SiparisKalemi[]
+enum CariTipi {
+  BIREYSEL
+  KURUMSAL
+  TEDARIKCI
+  DIGER
 }
 
-model Kutu {
-  id               Int             @id @default(autoincrement())
-  ad               String          @unique
-  kodu             String?
-  siparisKalemleri SiparisKalemi[]
+model CariHareket {
+  id                Int       @id @default(autoincrement())
+  cariId            Int
+  cari              Cari      @relation(fields: [cariId], references: [id], onDelete: Cascade)
+  
+  tip               HareketTipi
+  tutar             Float
+  aciklama          String?
+  belgeNo           String?
+  vadeTarihi        DateTime?
+  
+  // Relations
+  siparisId         Int?
+  siparis           Siparis?  @relation(fields: [siparisId], references: [id])
+  
+  createdAt         DateTime  @default(now())
+  createdBy         Int?
+  
+  @@index([cariId])
+  @@index([tip])
+  @@index([createdAt])
 }
 
-// Ürün Kategorisi Modeli
+enum HareketTipi {
+  SIPARIS
+  ODEME
+  IADE
+  DUZELTME
+  VADE_FAIZI
+  INDIRIM
+}
+
+model CariOdeme {
+  id                Int         @id @default(autoincrement())
+  cariId            Int
+  cari              Cari        @relation(fields: [cariId], references: [id], onDelete: Cascade)
+  
+  tutar             Float
+  odemeYontemi      OdemeYontemi
+  referansNo        String?     // Dekont no, çek no vs.
+  aciklama          String?
+  odemeTarihi       DateTime    @default(now())
+  
+  // Relations  
+  siparisId         Int?
+  siparis           Siparis?    @relation(fields: [siparisId], references: [id])
+  
+  createdAt         DateTime    @default(now())
+  createdBy         Int?
+  
+  @@index([cariId])
+  @@index([odemeYontemi])
+  @@index([odemeTarihi])
+}
+
+enum OdemeYontemi {
+  NAKIT
+  KREDI_KARTI
+  BANKA_HAVALESI
+  EFT
+  CEK
+  SENET
+  DIGER
+}
+
+// ===================================================================
+// 📦 PRODUCT & INVENTORY MANAGEMENT
+// ===================================================================
+
 model UrunKategori {
-  id          Int      @id @default(autoincrement())
-  ad          String   @unique
-  aciklama    String?
-  renk        String?  // Kategori rengi (UI için)
-  ikon        String?  // Kategori ikonu
-  aktif       Boolean  @default(true)
-  siraNo      Int?     // Sıralama için
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  ad                String   @unique
+  kod               String   @unique
+  aciklama          String?
+  parentId          Int?     // Hierarchical categories
+  parent            UrunKategori? @relation("KategoriHiyerarsi", fields: [parentId], references: [id])
+  altKategoriler    UrunKategori[] @relation("KategoriHiyerarsi")
   
-  urunler     Urun[]
+  // UI Properties
+  renk              String?  @default("#2196F3")
+  ikon              String?  @default("mdi-package-variant")
+  siraNo            Int?
+  aktif             Boolean  @default(true)
+  
+  // Relations
+  urunler           Urun[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([aktif])
+  @@index([parentId])
 }
 
-// Geliştirilmiş Ürün Modeli
 model Urun {
-  id               Int             @id @default(autoincrement())
-  ad               String          @unique
-  kodu             String?         @unique
-  aciklama         String?         @default("Açıklama...") // Ürün açıklaması
-  kisaAciklama     String?         // Kısa açıklama
-  kategoriId       Int?            // Kategori ilişkisi
-  kategori         UrunKategori?   @relation(fields: [kategoriId], references: [id])
+  id                  Int             @id @default(autoincrement())
+  ad                  String          @unique
+  kod                 String          @unique
+  barkod              String?         @unique
   
-  // Görsel ve Medya
-  anaGorsel        String?         // Ana ürün görseli URL
-  galeriGorseller  String[]        // Ek görseller (JSON array)
+  // Classification
+  kategoriId          Int?
+  kategori            UrunKategori?   @relation(fields: [kategoriId], references: [id])
   
-  // Ürün Özellikleri
-  agirlik          Float?          // Standart ağırlık (gram)
-  boyutlar         String?         // Boyut bilgisi (JSON: {en, boy, yukseklik})
-  renk             String?         // Ürün rengi
-  malzeme          String?         // Ana malzeme
-  mensei           String?         // Menşei ülke
+  // Description & Media
+  aciklama            String?
+  kisaAciklama        String?
+  anaGorsel           String?
+  galeriGorseller     Json?           // Array of image URLs
   
-  // Stok ve Satış Bilgileri
-  stokKodu         String?         // Stok kodu
-  barkod           String?         @unique // Barkod
-  minStokMiktari   Float?          @default(0) // Minimum stok miktarı
-  maxStokMiktari   Float?          // Maksimum stok miktarı
-  kritikStokSeviye Float?          @default(10) // Kritik stok seviyesi
+  // Physical Properties
+  agirlik             Float?          // Standart ağırlık (gram)
+  boyutlar            Json?           // {en, boy, yukseklik}
+  renk                String?
+  mensei              String?
   
-  // Satış Bilgileri
-  satisaBirimi     String?         @default("KG") // Satış birimi
-  minSatisMiktari  Float?          @default(1) // Minimum satış miktarı
-  maxSatisMiktari  Float?          // Maksimum satış miktarı
+  // Production Info
+  uretimSuresi        Int?            // Dakika
+  rafOmru             Int?            // Gün
+  saklamaKosullari    String?
+  maliyetFiyati       Float?
+  karMarji            Float?          @default(25.0)
   
-  // Durum ve Kontrol
-  aktif            Boolean         @default(true)
-  satisaUygun      Boolean         @default(true)
-  ozelUrun         Boolean         @default(false) // Özel/premium ürün
-  yeniUrun         Boolean         @default(false) // Yeni ürün
-  indirimliUrun    Boolean         @default(false) // İndirimli ürün
+  // Stock Management
+  stokKodu            String?         @unique
+  minStokMiktari      Float?          @default(0)
+  maxStokMiktari      Float?
+  kritikStokSeviye    Float?          @default(10)
+  mevcutStok          Float?          @default(0)
   
-  // SEO ve Arama
-  seoBaslik        String?         // SEO başlık
-  seoAciklama      String?         // SEO açıklama
-  anahtarKelimeler String[]        // Arama anahtar kelimeleri
+  // Sales Info
+  satisaBirimi        SatisBirimi     @default(KG)
+  minSatisMiktari     Float?          @default(0.1)
+  maxSatisMiktari     Float?
   
-  // Üretim Bilgileri
-  uretimSuresi     Int?            // Üretim süresi (dakika)
-  rafOmru          Int?            // Raf ömrü (gün)
-  saklamaKosullari String?         // Saklama koşulları
+  // Status Flags
+  aktif               Boolean         @default(true)
+  satisaUygun         Boolean         @default(true)
+  uretimdeAktif       Boolean         @default(true)
+  ozelUrun            Boolean         @default(false)
+  yeniUrun            Boolean         @default(false)
+  indirimliUrun       Boolean         @default(false)
   
-  // Maliyet Bilgileri
-  maliyetFiyati    Float?          // Maliyet fiyatı
-  karMarji         Float?          // Kar marjı (%)
+  // SEO & Search
+  seoBaslik           String?
+  seoAciklama         String?
+  anahtarKelimeler    Json?           // Array of keywords
   
-  // Tarih Bilgileri
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  createdBy        Int?            // Oluşturan kullanıcı
-  updatedBy        Int?            // Güncelleyen kullanıcı
+     // Relations
+   fiyatlar            Fiyat[]
+   siparisKalemleri    SiparisKalemi[]
+   receteler           Recipe[]
+   stokHareketleri     StokHareket[]
+   stokTransferleri    StokTransfer[]  @relation("UrunTransfer")
   
-  // İlişkiler
-  fiyatlar         Fiyat[]
-  siparisKalemleri SiparisKalemi[]
-  recipes          Recipe[]
-  ozelTepsiIcerikleri OzelTepsiIcerik[]
+  // Audit fields
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  createdBy           Int?
+  updatedBy           Int?
   
-  // İndeksler
   @@index([kategoriId])
   @@index([aktif])
   @@index([satisaUygun])
@@ -143,266 +342,536 @@ model Urun {
   @@index([barkod])
 }
 
-model Fiyat {
-  id            Int       @id @default(autoincrement())
-  urunId        Int
-  urun          Urun      @relation(fields: [urunId], references: [id], onDelete: Cascade)
-  fiyat         Float
-  birim         String    // "KG", "Adet" vb.
-  fiyatTipi     String    @default("normal") // "normal", "kampanya", "toptan", "perakende"
-  minMiktar     Float?    // Minimum miktar (toptan için)
-  maxMiktar     Float?    // Maximum miktar
-  iskonto       Float?    @default(0) // İskonto oranı
-  vergiOrani    Float?    @default(18) // KDV oranı
-  gecerliTarih  DateTime  @db.Date // Başlangıç tarihi
-  bitisTarihi   DateTime? @db.Date // Bitiş tarihi (null olabilir)
-  aktif         Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  createdBy     Int?      // Oluşturan kullanıcı
-
-  @@unique([urunId, birim, gecerliTarih]) // Başlangıç tarihi hala unique olmalı
-  @@index([aktif])
-  @@index([fiyatTipi])
+enum SatisBirimi {
+  KG
+  GRAM
+  ADET
+  PAKET
+  KUTU
+  TEPSI
 }
 
-// --- Ana Modeller ---
-model Siparis {
-  id                Int                @id @default(autoincrement())
-  tarih             DateTime           @db.Date
-  teslimatTuruId    Int
-  subeId            Int?
-  gonderenTipiId    Int?
-  gonderenAdi       String
-  gonderenTel       String
-  aliciAdi          String?
-  aliciTel          String?
-  adres             String?
-  aciklama          String?
-  gorunecekAd       String?
-  birimFiyat        Float?             @default(0)
-  onaylandiMi       Boolean            @default(false)
-  kargoUcreti       Float?             @default(0)
-  digerHizmetTutari Float?             @default(0)
-  toplamTepsiMaliyeti Float?           @default(0)
-  hazirlanmaDurumu  String             @default("Bekliyor")
-  // --- Kargo/Transfer Alanları ---
-  kargoDurumu       String?            // Enum gibi: "Hazırlanıyor", "Kargoya Verilecek", "Kargoda", "Teslim Edildi", "Şubeye Gönderilecek", "Şubede Teslim"
-  kargoSirketi      String?
-  kargoTakipNo      String?
-  kargoNotu         String?
-  kargoTarihi       DateTime?
-  teslimTarihi      DateTime?
-  hedefSubeId       Int?
-  // ---
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  cariId            Int?
-  cari              Cari?              @relation(fields: [cariId], references: [id])
+// ===================================================================
+// 💰 PRICING MANAGEMENT
+// ===================================================================
 
-  teslimatTuru      TeslimatTuru       @relation(fields: [teslimatTuruId], references: [id])
-  sube              Sube?              @relation(fields: [subeId], references: [id])
-  gonderenAliciTipi GonderenAliciTipi? @relation(fields: [gonderenTipiId], references: [id])
-  kalemler          SiparisKalemi[]
-  odemeler          Odeme[] 
+model Fiyat {
+  id                Int         @id @default(autoincrement())
+  urunId            Int
+  urun              Urun        @relation(fields: [urunId], references: [id], onDelete: Cascade)
+  
+  // Price Details
+  fiyat             Float
+  birim             SatisBirimi
+  fiyatTipi         FiyatTipi   @default(NORMAL)
+  
+  // Quantity Ranges
+  minMiktar         Float?      @default(0)
+  maxMiktar         Float?
+  
+  // Discounts & Taxes
+  iskonto           Float?      @default(0)
+  vergiOrani        Float?      @default(18)
+  
+  // Validity Period
+  gecerliTarih      DateTime    @db.Date
+  bitisTarihi       DateTime?   @db.Date
+  aktif             Boolean     @default(true)
+  
+  // Relations
+  createdAt         DateTime    @default(now())
+  createdBy         Int?
+  user              User?       @relation(fields: [createdBy], references: [id])
+  
+  @@unique([urunId, birim, fiyatTipi, gecerliTarih])
+  @@index([aktif])
+  @@index([fiyatTipi])
+  @@index([gecerliTarih])
+}
+
+enum FiyatTipi {
+  NORMAL
+  KAMPANYA
+  TOPTAN
+  PERAKENDE
+  OZEL_FIYAT
+  PROMOSYON
+}
+
+// ===================================================================
+// 📋 ORDER MANAGEMENT SYSTEM
+// ===================================================================
+
+model Siparis {
+  id                    Int                @id @default(autoincrement())
+  siparisNo             String             @unique @default(uuid())
+  
+  // Date & Delivery
+  tarih                 DateTime           @db.Date
+  teslimTarihi          DateTime?          @db.Date
+  
+  // Customer Info
+  cariId                Int?
+  cari                  Cari?              @relation(fields: [cariId], references: [id])
+  
+  // Manual Customer Info (for non-registered customers)
+  gonderenAdi           String
+  gonderenTel           String
+  gonderenEmail         String?
+  aliciAdi              String?
+  aliciTel              String?
+  aliciEmail            String?
+  
+  // Address Info
+  teslimatAdresi        String?
+  il                    String?
+  ilce                  String?
+  postaKodu             String?
+  
+  // Order Details
+  teslimatTuruId        Int
+  teslimatTuru          TeslimatTuru       @relation(fields: [teslimatTuruId], references: [id])
+  subeId                Int?
+  sube                  Sube?              @relation(fields: [subeId], references: [id])
+  
+  // Pricing
+  araToplam             Float              @default(0)
+  kdvToplam             Float              @default(0)
+  kargoUcreti           Float              @default(0)
+  digerHizmetTutari     Float              @default(0)
+  toplamTutar           Float              @default(0)
+  
+  // Order Status
+  durum                 SiparisDurumu      @default(BEKLIYOR)
+  onaylanmaDurumu       OnayDurumu         @default(BEKLIYOR)
+  hazirlanmaDurumu      HazirlamaDurumu    @default(BEKLIYOR)
+  kargoDurumu           KargoDurumu?       
+  
+     // Cargo Info
+   kargoSirketi          String?
+   kargoTakipNo          String?
+   kargoNotu             String?
+   kargoTarihi           DateTime?
+   
+   // Transfer Info (for branch orders)
+   hedefSubeId           Int?
+   hedefSube             Sube?              @relation("HedefSube", fields: [hedefSubeId], references: [id])
+  
+  // Notes & Special Instructions
+  siparisNotu           String?
+  ozelTalepler          String?
+  dahiliNotlar          String?           // Internal notes
+  
+  // Priority & Urgency
+  oncelik               OncelikSeviyesi    @default(NORMAL)
+  acilmi                Boolean            @default(false)
+  
+  // Relations
+  kalemler              SiparisKalemi[]
+  odemeler              CariOdeme[]
+  hareketler            CariHareket[]
+  
+  // Audit fields
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  createdBy             Int?
+  olusturan             User?              @relation("SiparisOlusturan", fields: [createdBy], references: [id])
+  onaylayanId           Int?
+  onaylayan             User?              @relation("SiparisOnaylayan", fields: [onaylayanId], references: [id])
+  onaylanmaTarihi       DateTime?
+  
+  @@index([durum])
+  @@index([onaylanmaDurumu])
+  @@index([hazirlanmaDurumu])
+  @@index([cariId])
+  @@index([tarih])
+  @@index([createdAt])
+}
+
+enum SiparisDurumu {
+  BEKLIYOR
+  ONAYLANDI
+  HAZIRLANIYOR
+  HAZIR
+  KARGODA
+  TESLIM_EDILDI
+  IPTAL
+}
+
+enum OnayDurumu {
+  BEKLIYOR
+  ONAYLANDI
+  REDDEDILDI
+}
+
+enum HazirlamaDurumu {
+  BEKLIYOR
+  HAZIRLANIYOR
+  HAZIRLANDI
+  PAKETLENDI
+}
+
+enum KargoDurumu {
+  HAZIRLANACAK
+  KARGOYA_VERILECEK
+  KARGODA
+  DAGITIMDA
+  TESLIM_EDILDI
+  TESLIM_EDILEMEDI
+  IADE
+}
+
+enum OncelikSeviyesi {
+  DUSUK
+  NORMAL
+  YUKSEK
+  ACIL
 }
 
 model SiparisKalemi {
-  id            Int        @id @default(autoincrement())
-  siparisId     Int
-  ambalajId     Int
-  urunId        Int
-  miktar        Float
-  birim         String
-  birimFiyat    Float?
-  tepsiTavaId   Int?
-  kutuId        Int?
-
-  siparis       Siparis    @relation(fields: [siparisId], references: [id], onDelete: Cascade)
-  ambalaj       Ambalaj    @relation(fields: [ambalajId], references: [id])
-  urun          Urun       @relation(fields: [urunId], references: [id])
-  tepsiTava     TepsiTava? @relation(fields: [tepsiTavaId], references: [id])
-  kutu          Kutu?      @relation(fields: [kutuId], references: [id])
-
+  id                Int           @id @default(autoincrement())
+  siparisId         Int
+  siparis           Siparis       @relation(fields: [siparisId], references: [id], onDelete: Cascade)
+  
+  // Product Info
+  urunId            Int
+  urun              Urun          @relation(fields: [urunId], references: [id])
+  urunAdi           String        // Snapshot of product name
+  urunKodu          String?       // Snapshot of product code
+  
+  // Quantity & Pricing
+  miktar            Float
+  birim             SatisBirimi
+  birimFiyat        Float
+  kdvOrani          Float         @default(18)
+  iskonto           Float         @default(0)
+  araToplam         Float         // miktar * birimFiyat
+  kdvTutari         Float         // araToplam * kdvOrani / 100
+  toplamTutar       Float         // araToplam + kdvTutari - iskonto
+  
+  // Packaging Info
+  ambalajId         Int?
+  ambalaj           Ambalaj?      @relation(fields: [ambalajId], references: [id])
+  tepsiTavaId       Int?
+  tepsiTava         TepsiTava?    @relation(fields: [tepsiTavaId], references: [id])
+  kutuId            Int?
+  kutu              Kutu?         @relation(fields: [kutuId], references: [id])
+  
+  // Production Info
+  hazirlanmaDurumu  HazirlamaDurumu @default(BEKLIYOR)
+  uretimNotu        String?
+  
+  // Relations
+  stokHareketleri   StokHareket[]
+  
   @@index([siparisId])
-  @@index([tepsiTavaId])
-  @@index([kutuId])
+  @@index([urunId])
+  @@index([hazirlanmaDurumu])
 }
 
-model Odeme {
-  id           Int       @id @default(autoincrement())
-  siparisId    Int       // Hangi siparişe ait
-  tutar        Float     // Ödenen tutar
-  odemeTarihi  DateTime  @default(now()) @db.Timestamp(6) // Ödemenin yapıldığı tarih/saat
-  odemeYontemi String?   // Opsiyonel: "Nakit", "Kredi Kartı", "Havale" vb.
-  aciklama     String?   // Opsiyonel: Ödeme ile ilgili not
+// ===================================================================
+// 📦 PACKAGING MANAGEMENT
+// ===================================================================
 
-  siparis      Siparis   @relation(fields: [siparisId], references: [id], onDelete: Cascade) // Sipariş silinirse ödemeler de silinsin
-
-  @@index([siparisId]) // Siparişe göre ödemeleri hızlı bulmak için
+model Ambalaj {
+  id                Int             @id @default(autoincrement())
+  ad                String          @unique
+  kod               String          @unique
+  aciklama          String?
+  fiyat             Float?          @default(0)
+  agirlik           Float?          // gram
+  aktif             Boolean         @default(true)
+  
+  // Relations
+  siparisKalemleri  SiparisKalemi[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([aktif])
 }
 
-model OperasyonBirimi {
-  id      Int    @id @default(autoincrement())
-  ad      String
-  kod     String @unique
-  stoklar Stok[]
+model TepsiTava {
+  id                Int             @id @default(autoincrement())
+  ad                String          @unique
+  kod               String          @unique
+  aciklama          String?
+  fiyat             Float           @default(0)
+  agirlik           Float?          // gram
+  boyut             String?         // Small, Medium, Large
+  malzeme           String?         // Aluminum, Plastic, etc.
+  aktif             Boolean         @default(true)
+  
+  // Relations
+  siparisKalemleri  SiparisKalemi[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([aktif])
 }
 
-model Hammadde {
-  id      Int    @id @default(autoincrement())
-  ad      String
-  kod     String @unique
-  stoklar Stok[]
+model Kutu {
+  id                Int             @id @default(autoincrement())
+  ad                String          @unique
+  kod               String          @unique
+  aciklama          String?
+  fiyat             Float?          @default(0)
+  agirlik           Float?          // gram
+  boyutlar          Json?           // {en, boy, yukseklik}
+  aktif             Boolean         @default(true)
+  
+  // Relations
+  siparisKalemleri  SiparisKalemi[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  @@index([aktif])
 }
 
-model YariMamul {
-  id      Int    @id @default(autoincrement())
-  ad      String
-  kod     String @unique
-  stoklar Stok[]
+// ===================================================================
+// 🧾 RECIPE & PRODUCTION MANAGEMENT
+// ===================================================================
+
+model Material {
+  id                Int                 @id @default(autoincrement())
+  ad                String              @unique
+  kod               String              @unique
+  tipi              MaterialTipi
+  birim             MaterialBirimi      @default(KG)
+  birimFiyat        Float?              @default(0)
+  
+  // Stock Info
+  mevcutStok        Float               @default(0)
+  minStokSeviye     Float               @default(0)
+  maxStokSeviye     Float?
+  kritikSeviye      Float               @default(10)
+  
+  // Properties
+  aciklama          String?
+  tedarikci         String?
+  rafOmru           Int?                // gün
+  saklamaKosullari  String?
+  aktif             Boolean             @default(true)
+  
+     // Relations
+   receteIcerikleri  RecipeIngredient[]
+   stokHareketleri   StokHareket[]
+   stokTransferleri  StokTransfer[]      @relation("MaterialTransfer")
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  @@index([tipi])
+  @@index([aktif])
+  @@index([kod])
 }
 
-model Stok {
-  id                Int    @id @default(autoincrement())
-  hammaddeId        Int?
-  yariMamulId       Int?
-  operasyonBirimiId Int
-  miktarGram        Float
-  minimumMiktarGram Float? @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+enum MaterialTipi {
+  HAMMADDE
+  YARI_MAMUL
+  YARDIMCI_MADDE
+  AMBALAJ_MALZEMESI
+}
 
-  hammadde          Hammadde? @relation(fields: [hammaddeId], references: [id])
-  yariMamul         YariMamul? @relation(fields: [yariMamulId], references: [id])
-  operasyonBirimi   OperasyonBirimi @relation(fields: [operasyonBirimiId], references: [id])
-
-  kaynakOlduguTransferler StokTransfer[] @relation("KaynakStok")
-  hedefOlduguTransferler  StokTransfer[] @relation("HedefStok")
-  hareketler              StokHareket[]
-
-  @@unique([hammaddeId, operasyonBirimiId])
-  @@unique([yariMamulId, operasyonBirimiId])
+enum MaterialBirimi {
+  KG
+  GRAM
+  LITRE
+  ML
+  ADET
+  PAKET
 }
 
 model Recipe {
-  id          Int                 @id @default(autoincrement())
-  name        String              // Reçete adı (örn: FISTIKLI KURABİYE)
-  urunId      Int?                // İlgili ürün (varsa)
-  urun        Urun?               @relation(fields: [urunId], references: [id])
-  ingredients RecipeIngredient[]  // İçerik listesi
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  id                Int                 @id @default(autoincrement())
+  ad                String              @unique
+  kod               String              @unique
+  
+  // Product Relation
+  urunId            Int?
+  urun              Urun?               @relation(fields: [urunId], references: [id])
+  
+  // Recipe Details
+  aciklama          String?
+  porsiyon          Float?              @default(1)   // Kaç porsiyon için
+  hazirlamaSuresi   Int?                // Dakika
+  pisirmeSuresi     Int?                // Dakika
+  
+  // Instructions
+  hazirlanisi       Json?               // Step by step instructions
+  notlar            String?
+  
+  // Costing
+  toplamMaliyet     Float?              @default(0)
+  porsinoyonMaliyet Float?              @default(0)
+  
+  // Status
+  aktif             Boolean             @default(true)
+  test              Boolean             @default(false)
+  versiyon          String              @default("1.0")
+  
+  // Relations
+  icerikelek        RecipeIngredient[]
+  
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  createdBy         Int?
+  
+  @@unique([urunId, versiyon])
+  @@index([aktif])
+  @@index([urunId])
 }
 
 model RecipeIngredient {
-  id         Int      @id @default(autoincrement())
-  recipeId   Int
-  stokKod    String   // Hammadde veya Yarı Mamul kodu
-  miktarGram Float
-  recipe     Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  id                Int                 @id @default(autoincrement())
+  recipeId          Int
+  recipe            Recipe              @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  
+  materialId        Int
+  material          Material            @relation(fields: [materialId], references: [id])
+  
+  // Quantity
+  miktar            Float
+  birim             MaterialBirimi
+  
+  // Notes
+  hazirlamaNotu     String?             // "ince doğranmış", "kaynatılmış" vs.
+  zorunlu           Boolean             @default(true)
+  alternatifOlabilir Boolean           @default(false)
+  
+  siraNo            Int?                // Kullanım sırası
+  
+  @@unique([recipeId, materialId])
+  @@index([recipeId])
+  @@index([materialId])
+}
+
+// ===================================================================
+// 📊 STOCK MANAGEMENT & TRACKING
+// ===================================================================
+
+model StokHareket {
+  id                Int               @id @default(autoincrement())
+  
+  // Item Reference
+  urunId            Int?
+  urun              Urun?             @relation(fields: [urunId], references: [id])
+  materialId        Int?
+  material          Material?         @relation(fields: [materialId], references: [id])
+  
+  // Movement Details
+  tip               StokHareketTipi
+  miktar            Float
+  birim             String
+  
+  // Reference Documents
+  siparisKalemiId   Int?
+  siparisKalemi     SiparisKalemi?    @relation(fields: [siparisKalemiId], references: [id])
+  transferId        Int?
+  transfer          StokTransfer?     @relation(fields: [transferId], references: [id])
+  
+  // Additional Info
+  aciklama          String?
+  referansNo        String?           // Fiş no, fatura no vs.
+  
+  // Before/After Stock Levels
+  oncekiStok        Float?
+  sonrakiStok       Float?
+  
+  // Audit
+  createdAt         DateTime          @default(now())
+  createdBy         Int?
+  user              User?             @relation(fields: [createdBy], references: [id])
+  
+  @@index([tip])
+  @@index([urunId])
+  @@index([materialId])
+  @@index([createdAt])
+}
+
+enum StokHareketTipi {
+  GIRIS
+  CIKIS
+  TRANSFER
+  FIRE
+  SAYIM_FAZLA
+  SAYIM_EKSIK
+  URETIM_GIRDI
+  URETIM_CIKTI
+  IADE
+  DUZELTME
 }
 
 model StokTransfer {
-  id           Int      @id @default(autoincrement())
-  kaynakStokId Int
-  hedefStokId  Int
-  miktarGram   Float
-  aciklama     String?
-  createdAt    DateTime @default(now())
-  userId       Int?
-
-  kaynakStok   Stok     @relation("KaynakStok", fields: [kaynakStokId], references: [id])
-  hedefStok    Stok     @relation("HedefStok", fields: [hedefStokId], references: [id])
-  user         User?    @relation(fields: [userId], references: [id])
+  id                Int               @id @default(autoincrement())
+  transferNo        String            @unique @default(uuid())
+  
+  // Transfer Details
+  kaynakSubeId      Int?
+  kaynakSube        Sube?             @relation("KaynakSube", fields: [kaynakSubeId], references: [id])
+  hedefSubeId       Int?
+  hedefSube         Sube?             @relation(fields: [hedefSubeId], references: [id])
+  
+  // Items can be either products or materials
+  urunId            Int?
+  urun              Urun?             @relation("UrunTransfer", fields: [urunId], references: [id])
+  materialId        Int?
+  material          Material?         @relation("MaterialTransfer", fields: [materialId], references: [id])
+  
+  miktar            Float
+  birim             String
+  aciklama          String?
+  
+  // Status
+  durum             TransferDurumu    @default(BEKLIYOR)
+  gonderimTarihi    DateTime?
+  teslimTarihi      DateTime?
+  
+  // Relations
+  stokHareketleri   StokHareket[]
+  
+  // Audit
+  createdAt         DateTime          @default(now())
+  createdBy         Int?
+  user              User?             @relation(fields: [createdBy], references: [id])
+  onaylayanId       Int?
+  teslimAlanId      Int?
+  
+  @@index([durum])
+  @@index([kaynakSubeId])
+  @@index([hedefSubeId])
 }
 
-model StokHareket {
-  id         Int      @id @default(autoincrement())
-  stokId     Int
-  tip        String   // 'giris', 'cikis', 'transfer'
-  miktarGram Float
-  aciklama   String?
-  createdAt  DateTime @default(now())
-  userId     Int?
-
-  stok       Stok     @relation(fields: [stokId], references: [id])
-  user       User?    @relation(fields: [userId], references: [id])
+enum TransferDurumu {
+  BEKLIYOR
+  ONAYLANDI
+  GONDERILDI
+  TESLIM_EDILDI
+  IPTAL
 }
 
-model User {
-  id           Int      @id @default(autoincrement())
-  ad           String
-  email        String?   
-  passwordHash String
-  role         String   // 'admin', 'user', etc.
-  createdAt    DateTime @default(now())
-  sgkDurumu    String?
-  girisYili    Int?
-  sube         String?
-  erpPasifAktif Boolean @default(true)
-  gunlukUcret  Float?
-  hareketler   StokHareket[]
-  transferler  StokTransfer[]
+// ===================================================================
+// 🎯 SYSTEM CONFIGURATION & SETTINGS
+// ===================================================================
+
+model SystemSetting {
+  id                Int               @id @default(autoincrement())
+  key               String            @unique
+  value             String
+  description       String?
+  category          String?
+  dataType          SettingDataType   @default(STRING)
+  
+  updatedAt         DateTime          @updatedAt
+  updatedBy         Int?
 }
 
-model Cari {
-  id           Int           @id @default(autoincrement())
-  ad           String
-  telefon      String?
-  email        String?       @unique
-  aciklama     String?
-  bakiye       Float         @default(0)
-  hareketler   CariHareket[]
-  siparisler   Siparis[]
-  adresler     Adres[]       // Çoklu adres desteği
-  musteriKodu  String       @unique
-  subeId       Int?          // Şube ilişkisi
-  sube         Sube?         @relation(fields: [subeId], references: [id])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-}
-
-model Adres {
-  id        Int      @id @default(autoincrement())
-  cariId    Int
-  tip       String   // Ev, İş, vb.
-  adres     String
-  cari      Cari     @relation(fields: [cariId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model CariHareket {
-  id           Int       @id @default(autoincrement())
-  cariId       Int
-  cari         Cari      @relation(fields: [cariId], references: [id])
-  tip          String    // 'siparis', 'odeme', 'duzeltme' vs.
-  tutar        Float
-  aciklama     String?
-  vadeTarihi   DateTime?
-  direction    String    // 'borc' veya 'alacak'
-  createdAt    DateTime  @default(now())
-}
-
-model OzelTepsi {
-  id          Int                @id @default(autoincrement())
-  kod         String             @unique
-  ad          String
-  aciklama    String?
-  fiyat       Float
-  toplamKg    Float              // Toplam ağırlık (kg)
-  icindekiler OzelTepsiIcerik[]
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-}
-
-model OzelTepsiIcerik {
-  id           Int        @id @default(autoincrement())
-  ozelTepsiId  Int
-  urunId       Int
-  miktar       Float      // KG cinsinden miktar
-  ozelTepsi    OzelTepsi  @relation(fields: [ozelTepsiId], references: [id], onDelete: Cascade)
-  urun         Urun       @relation(fields: [urunId], references: [id])
-
-  @@unique([ozelTepsiId, urunId])
+enum SettingDataType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+  DATE
 }

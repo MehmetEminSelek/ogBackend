@@ -5,12 +5,12 @@
   "homepage": "https://ogsiparis.com",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.js",
     "dev:nextjs": "next dev",
     "build": "next build",
-    "start": "next start -p $PORT",
+    "start": "NODE_ENV=production node server.js",
     "start:nextjs": "next start",
-    "start:prod": "NODE_ENV=production next start -p $PORT",
+    "start:prod": "NODE_ENV=production node server.js",
     "generate": "prisma generate",
     "pull": "prisma db pull",
     "lint": "next lint",
@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "^6.6.0",
     "axios": "^1.9.0",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.4.9",
     "compression": "^1.7.4",

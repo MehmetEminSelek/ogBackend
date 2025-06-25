@@ -1,7 +1,7 @@
 // pages/api/dropdown.js
 // Bu dosya SADECE dropdown seçeneklerini getirmek (GET) içindir.
 
-import prisma from '../../lib/prisma'; // Prisma Client import yolunu kontrol et
+import prisma from '../../lib/prisma';
 
 export default async function handler(req, res) {
   // CORS ve OPTIONS Handling
@@ -18,69 +18,159 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     console.log('GET /api/dropdown isteği alındı...');
     try {
-      // Verileri paralel çek
+      // Verileri paralel çek - YENİ SCHEMA
       const [
         teslimatTurleri,
         subeler,
-        aliciTipleri,
         ambalajlar,
         urunler,
         tepsiTavalar,
-        kutular,
-        hammaddeler,
-        yariMamuller,
-        cariler
+        materials,
+        cariler,
+        kategoriler
       ] = await Promise.all([
-        prisma.teslimatTuru.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.sube.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.gonderenAliciTipi.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.ambalaj.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.urun.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.tepsiTava.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.kutu.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.hammadde.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.yariMamul.findMany({ orderBy: { ad: 'asc' } }),
-        prisma.cari.findMany({ orderBy: { ad: 'asc' }, include: { adresler: true } })
+        prisma.teslimatTuru.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.sube.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.ambalaj.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.urun.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.tepsiTava.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.material.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.cari.findMany({
+          where: { aktif: true },
+          orderBy: { ad: 'asc' },
+          select: {
+            id: true,
+            ad: true,
+            soyad: true,
+            telefon: true,
+            email: true,
+            musteriKodu: true,
+            adres: true,
+            il: true,
+            ilce: true
+          }
+        }),
+        prisma.urunKategori.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } })
       ]);
 
       console.log('Veritabanından dropdown verileri başarıyla çekildi.');
 
+      // Materials'ı tipine göre grupla
+      const hammaddeler = materials.filter(m => m.tipi === 'HAMMADDE');
+      const yariMamuller = materials.filter(m => m.tipi === 'YARI_MAMUL');
+      const yardimciMaddeler = materials.filter(m => m.tipi === 'YARDIMCI_MADDE');
+      const ambalajMalzemeleri = materials.filter(m => m.tipi === 'AMBALAJ_MALZEMESI');
+
       // Yanıtı formatla (ID ve Ad ile)
       const responseData = {
-        teslimatTurleri: teslimatTurleri.map(item => ({ id: item.id, ad: item.ad })),
-        subeler: subeler.map(item => ({ id: item.id, ad: item.ad })),
-        aliciTipleri: aliciTipleri.map(item => ({ id: item.id, ad: item.ad })),
-        ambalajlar: ambalajlar.map(item => ({ id: item.id, ad: item.ad })),
-        urunler: urunler.map(item => ({ id: item.id, ad: item.ad })),
-        tepsiTavalar: tepsiTavalar.map(item => ({ id: item.id, ad: item.ad })),
-        kutular: kutular.map(item => ({ id: item.id, ad: item.ad })),
-        hammaddeler: hammaddeler.map(item => ({ kod: item.kod, ad: item.ad })),
-        yariMamuller: yariMamuller.map(item => ({ kod: item.kod, ad: item.ad })),
+        teslimatTurleri: teslimatTurleri.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          fiyat: item.fiyat || 0,
+          aciklama: item.aciklama
+        })),
+        subeler: subeler.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          kod: item.kod,
+          telefon: item.telefon,
+          adres: item.adres
+        })),
+        ambalajlar: ambalajlar.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          fiyat: item.fiyat || 0,
+          aciklama: item.aciklama
+        })),
+        urunler: urunler.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          kod: item.kod,
+          kategoriId: item.kategoriId,
+          fiyat: item.fiyat || 0
+        })),
+        tepsiTavalar: tepsiTavalar.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          fiyat: item.fiyat || 0,
+          aciklama: item.aciklama
+        })),
+        kategoriler: kategoriler.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          kod: item.kod,
+          aciklama: item.aciklama
+        })),
+        // Material sisteminden gelen veriler
+        hammaddeler: hammaddeler.map(item => ({
+          id: item.id,
+          kod: item.kod,
+          ad: item.ad,
+          birim: item.birim,
+          birimFiyat: item.birimFiyat || 0
+        })),
+        yariMamuller: yariMamuller.map(item => ({
+          id: item.id,
+          kod: item.kod,
+          ad: item.ad,
+          birim: item.birim,
+          birimFiyat: item.birimFiyat || 0
+        })),
+        yardimciMaddeler: yardimciMaddeler.map(item => ({
+          id: item.id,
+          kod: item.kod,
+          ad: item.ad,
+          birim: item.birim,
+          birimFiyat: item.birimFiyat || 0
+        })),
+        ambalajMalzemeleri: ambalajMalzemeleri.map(item => ({
+          id: item.id,
+          kod: item.kod,
+          ad: item.ad,
+          birim: item.birim,
+          birimFiyat: item.birimFiyat || 0
+        })),
+        // Tüm materyaller birleşik liste
+        materials: materials.map(item => ({
+          id: item.id,
+          kod: item.kod,
+          ad: item.ad,
+          tipi: item.tipi,
+          birim: item.birim,
+          birimFiyat: item.birimFiyat || 0,
+          mevcutStok: item.mevcutStok || 0
+        })),
         cariler: cariler.map(item => ({
           id: item.id,
           ad: item.ad,
+          soyad: item.soyad,
+          tamAd: `${item.ad} ${item.soyad || ''}`.trim(),
           telefon: item.telefon ? String(item.telefon) : '',
-          adresler: Array.isArray(item.adresler) ? item.adresler : []
+          email: item.email || '',
+          musteriKodu: item.musteriKodu || '',
+          adres: item.adres || '',
+          il: item.il || '',
+          ilce: item.ilce || ''
         }))
       };
 
       // Başarılı yanıtı gönder
       return res.status(200).json(responseData);
 
-    } catch (error) { // try bloğunun catch'i
+    } catch (error) {
       console.error('❌ /api/dropdown HATA:', error);
       // Hata yanıtını gönder
       return res.status(500).json({
         message: 'Dropdown verileri alınırken bir sunucu hatası oluştu.',
         error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
-    } // catch bloğu bitti
-  } // if (req.method === 'GET') bloğu bitti
-  else { // GET veya OPTIONS değilse
+    }
+  } else {
     // Desteklenmeyen metot için 405 hatası
     console.log(`Desteklenmeyen metot: ${req.method} for /api/dropdown`);
     res.setHeader('Allow', ['GET', 'OPTIONS']);
     return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
   }
-} // handler fonksiyonu bitti
+}
 

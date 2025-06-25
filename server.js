@@ -9,7 +9,7 @@ const hostname = '0.0.0.0'; // Tüm IP'lerde dinle
 const port = process.env.PORT || 3000;
 
 // ogsiparis.com domain konfigürasyonu
-const allowedOrigins = dev 
+const allowedOrigins = dev
     ? ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
     : ['https://ogsiparis.com', 'https://www.ogsiparis.com'];
 
@@ -21,16 +21,26 @@ app.prepare().then(() => {
         try {
             // CORS headers
             const origin = req.headers.origin;
+            console.log('CORS DEBUG - Origin:', origin, '| Method:', req.method, '| URL:', req.url);
             if (allowedOrigins.includes(origin)) {
                 res.setHeader('Access-Control-Allow-Origin', origin);
+                console.log('CORS DEBUG - Allowed origin:', origin);
+            } else {
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                console.log('CORS DEBUG - Fallback origin: *');
             }
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, cache-control');
             res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-            // Preflight requests
+            // Preflight requests - OPTIONS method için özel handling
             if (req.method === 'OPTIONS') {
-                res.writeHead(200);
+                res.writeHead(200, {
+                    'Access-Control-Allow-Origin': origin || '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
+                    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, cache-control',
+                    'Access-Control-Allow-Credentials': 'true'
+                });
                 res.end();
                 return;
             }

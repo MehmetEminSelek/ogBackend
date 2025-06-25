@@ -15,11 +15,6 @@ export function middleware(request) {
     response.headers.set('X-XSS-Protection', '1; mode=block');
     response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // Add CORS headers
-    response.headers.set('Access-Control-Allow-Origin', '*');
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
     return response;
 }
 
