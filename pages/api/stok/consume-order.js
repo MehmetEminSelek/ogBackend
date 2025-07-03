@@ -1,82 +1,184 @@
 import prisma from '../../../lib/prisma';
 
-// Yardımcı fonksiyon: Reçeteyi recursive olarak çöz ve hammaddeye kadar in
-async function resolveRecipe(stokKod, miktar) {
-    const hammadde = await prisma.hammadde.findUnique({ where: { kod: stokKod } });
-    if (hammadde) {
-        return [{ stokKod, miktar }];
-    }
-    const yariMamul = await prisma.yariMamul.findUnique({ where: { kod: stokKod } });
-    if (yariMamul) {
-        const recipe = await prisma.recipe.findFirst({ where: { name: { contains: yariMamul.ad, mode: 'insensitive' } }, include: { ingredients: true } });
-        if (!recipe) return [];
-        let result = [];
-        for (const ing of recipe.ingredients) {
-            const sub = await resolveRecipe(ing.stokKod, miktar * (ing.miktarGram / 1000));
-            result = result.concat(sub);
+// Yardımcı fonksiyon: Reçeteyi çöz ve malzemeleri bul
+async function resolveRecipeMaterials(urunId, miktar) {
+    const recipe = await prisma.recipe.findFirst({
+        where: { urunId: urunId, aktif: true },
+        include: {
+            icerikelek: {
+                include: {
+                    material: true
+                }
+            }
         }
-        return result;
+    });
+
+    if (!recipe) {
+        return [];
     }
-    return [];
+
+    // Sipariş miktarını kilogram cinsine çevir
+    const siparisKg = miktar; // Zaten kg cinsinden geliyor
+
+    return recipe.icerikelek.map(ing => ({
+        materialId: ing.material.id,
+        materialKodu: ing.material.kod,
+        materialAdi: ing.material.ad,
+        gerekliMiktar: ing.gerMiktarTB || ing.gerMiktar || ing.miktar, // Talep bazında gerçek miktar
+        birim: ing.birim
+    }));
 }
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ message: 'Method Not Allowed' });
+    }
+
     const { siparisId } = req.body;
-    if (!siparisId) return res.status(400).json({ message: 'siparisId gereklidir.' });
-
-    const siparis = await prisma.siparis.findUnique({
-        where: { id: siparisId },
-        include: { kalemler: { include: { urun: { include: { recipes: { include: { ingredients: true } } } } } } }
-    });
-    if (!siparis) return res.status(404).json({ message: 'Sipariş bulunamadı.' });
-    if (siparis.hazirlanmaDurumu !== 'Hazırlandı') return res.status(400).json({ message: 'Sadece Hazırlandı statüsündeki siparişler için stok düşülebilir.' });
-
-    let stokIhtiyaclari = {};
-    for (const kalem of siparis.kalemler) {
-        const recipe = kalem.urun.recipes[0];
-        if (!recipe) continue;
-        for (const ing of recipe.ingredients) {
-            const resolved = await resolveRecipe(ing.stokKod, kalem.miktar * (ing.miktarGram / 1000));
-            for (const h of resolved) {
-                if (!stokIhtiyaclari[h.stokKod]) stokIhtiyaclari[h.stokKod] = 0;
-                stokIhtiyaclari[h.stokKod] += h.miktar;
-            }
-        }
+    if (!siparisId) {
+        return res.status(400).json({ message: 'siparisId gereklidir.' });
     }
 
-    let hareketler = [];
-    for (const stokKod in stokIhtiyaclari) {
-        const miktar = stokIhtiyaclari[stokKod];
-        let stok = await prisma.stok.findFirst({
-            where: {
-                OR: [
-                    { hammadde: { kod: stokKod } },
-                    { yariMamul: { kod: stokKod } }
-                ]
+    try {
+        // Siparişi ve kalemlerini çek
+        const siparis = await prisma.siparis.findUnique({
+            where: { id: parseInt(siparisId) },
+            include: {
+                kalemler: {
+                    include: {
+                        urun: true
+                    }
+                }
             }
         });
-        if (!stok) {
-            console.warn('Stok kaydı bulunamadı:', stokKod);
-            continue;
+
+        if (!siparis) {
+            return res.status(404).json({ message: 'Sipariş bulunamadı.' });
         }
-        // DEBUG: Önceki miktarı logla
-        console.log(`Stok düşülüyor: ${stokKod} | Önceki miktar: ${stok.miktarGram} | Düşülecek miktar: ${miktar}`);
-        // Stoktan düş (birim uyumlu, çarpan yok)
-        await prisma.stok.update({ where: { id: stok.id }, data: { miktarGram: { decrement: miktar } } });
-        // Sonraki miktarı logla
-        const stokSonra = await prisma.stok.findUnique({ where: { id: stok.id } });
-        console.log(`Stok düşüldü: ${stokKod} | Sonraki miktar: ${stokSonra.miktarGram}`);
-        await prisma.stokHareket.create({
+
+        // Sadece HAZIRLANDI durumundaki siparişler için stok düşülebilir
+        if (siparis.durum !== 'HAZIRLANDI') {
+            return res.status(400).json({
+                message: 'Sadece HAZIRLANDI durumundaki siparişler için stok düşülebilir.'
+            });
+        }
+
+        // Daha önce stok düşümü yapılmış mı kontrolü
+        if (siparis.siparisNotu && siparis.siparisNotu.includes('[STOK DÜŞÜLDÜ]')) {
+            return res.status(400).json({
+                message: 'Bu sipariş için daha önce stok düşümü yapılmış.'
+            });
+        }
+
+        let stokIhtiyaclari = {};
+        const stokHatalari = [];
+
+        // Her kalem için reçete malzemelerini hesapla
+        for (const kalem of siparis.kalemler) {
+            const materials = await resolveRecipeMaterials(kalem.urun.id, kalem.miktar);
+
+            for (const material of materials) {
+                if (!stokIhtiyaclari[material.materialId]) {
+                    stokIhtiyaclari[material.materialId] = {
+                        materialId: material.materialId,
+                        materialKodu: material.materialKodu,
+                        materialAdi: material.materialAdi,
+                        gerekliMiktar: 0,
+                        birim: material.birim
+                    };
+                }
+                stokIhtiyaclari[material.materialId].gerekliMiktar += material.gerekliMiktar;
+            }
+        }
+
+        // Stok kontrolü ve düşümü
+        const stokHareketleri = [];
+
+        for (const materialId in stokIhtiyaclari) {
+            const ihtiyac = stokIhtiyaclari[materialId];
+
+            // Material'ı bul
+            const material = await prisma.material.findUnique({
+                where: { id: materialId }
+            });
+
+            if (!material) {
+                stokHatalari.push(`${ihtiyac.materialKodu} kodlu malzeme bulunamadı`);
+                continue;
+            }
+
+            // Stok yeterliliği kontrolü
+            if (material.mevcutStok < ihtiyac.gerekliMiktar) {
+                stokHatalari.push(
+                    `${material.ad} için yetersiz stok. Gereken: ${ihtiyac.gerekliMiktar}${ihtiyac.birim}, Mevcut: ${material.mevcutStok}${material.birim}`
+                );
+                continue;
+            }
+
+            // Stoktan düş
+            const oncekiStok = material.mevcutStok;
+            const sonrakiStok = oncekiStok - ihtiyac.gerekliMiktar;
+
+            await prisma.material.update({
+                where: { id: materialId },
+                data: { mevcutStok: sonrakiStok }
+            });
+
+            // Stok hareketi kaydet
+            const stokHareket = await prisma.stokHareket.create({
+                data: {
+                    materialId: materialId,
+                    tip: 'CIKIS',
+                    miktar: ihtiyac.gerekliMiktar,
+                    birim: ihtiyac.birim,
+                    aciklama: `Sipariş #${siparisId} için otomatik stok düşümü (reçete)`,
+                    oncekiStok: oncekiStok,
+                    sonrakiStok: sonrakiStok,
+                    siparisKalemiId: null // Genel sipariş düşümü
+                }
+            });
+
+            stokHareketleri.push({
+                materialKodu: material.kod,
+                materialAdi: material.ad,
+                dusulenMiktar: ihtiyac.gerekliMiktar,
+                birim: ihtiyac.birim,
+                oncekiStok: oncekiStok,
+                sonrakiStok: sonrakiStok
+            });
+
+            console.log(`✅ Stok düşüldü: ${material.ad} | ${oncekiStok} -> ${sonrakiStok} ${material.birim}`);
+        }
+
+        // Eğer stok hatası varsa işlemi iptal et
+        if (stokHatalari.length > 0) {
+            return res.status(400).json({
+                message: 'Stok düşme işlemi başarısız:',
+                hatalar: stokHatalari
+            });
+        }
+
+        // Sipariş açıklamasına işaret ekle
+        await prisma.siparis.update({
+            where: { id: parseInt(siparisId) },
             data: {
-                stokId: stok.id,
-                tip: 'cikis',
-                miktarGram: miktar,
-                aciklama: `Sipariş #${siparisId} için otomatik stok düşümü (reçete)`
+                siparisNotu: (siparis.siparisNotu || '') + ' [STOK DÜŞÜLDÜ]'
             }
         });
-        hareketler.push({ stokKod, miktar });
-    }
 
-    return res.status(200).json({ message: 'Stoklar başarıyla düşüldü.', hareketler });
+        console.log(`✅ Sipariş ${siparisId} için stok düşümü tamamlandı. ${stokHareketleri.length} malzeme düşüldü.`);
+
+        return res.status(200).json({
+            message: 'Stoklar başarıyla düşüldü.',
+            hareketler: stokHareketleri,
+            toplamDusulenMalzeme: stokHareketleri.length
+        });
+
+    } catch (error) {
+        console.error('❌ Stok düşümü hatası:', error);
+        return res.status(500).json({
+            message: 'Stok düşümü sırasında hata oluştu.',
+            error: error.message
+        });
+    }
 } 

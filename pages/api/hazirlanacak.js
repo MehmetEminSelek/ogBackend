@@ -13,8 +13,7 @@ export default async function handler(req, res) {
 
             const siparisler = await prisma.siparis.findMany({
                 where: {
-                    onaylandiMi: true,
-                    hazirlanmaDurumu: "Bekliyor"
+                    durum: "HAZIRLLANACAK"  // Basitleştirilmiş: Onaylanmış ama henüz üretilmemiş
                 },
                 orderBy: { tarih: 'asc' },
                 include: {
@@ -29,11 +28,15 @@ export default async function handler(req, res) {
                             urun: {
                                 select: {
                                     ad: true,
-                                    kodu: true,
+                                    kod: true,
                                     maliyetFiyati: true,
-                                    recipes: {
+                                    receteler: {
                                         include: {
-                                            ingredients: true
+                                            icerikelek: {
+                                                include: {
+                                                    material: true
+                                                }
+                                            }
                                         }
                                     }
                                 }

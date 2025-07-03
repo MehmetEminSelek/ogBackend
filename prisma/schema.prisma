@@ -308,6 +308,7 @@ model Urun {
   satisaBirimi        SatisBirimi     @default(KG)
   minSatisMiktari     Float?          @default(0.1)
   maxSatisMiktari     Float?
+  kdvOrani            Float?          @default(18.0) // KDV oranı (%)
   
   // Status Flags
   aktif               Boolean         @default(true)
@@ -441,11 +442,9 @@ model Siparis {
   digerHizmetTutari     Float              @default(0)
   toplamTutar           Float              @default(0)
   
-  // Order Status
-  durum                 SiparisDurumu      @default(BEKLIYOR)
-  onaylanmaDurumu       OnayDurumu         @default(BEKLIYOR)
-  hazirlanmaDurumu      HazirlamaDurumu    @default(BEKLIYOR)
-  kargoDurumu           KargoDurumu?       
+  // Order Status - Basitleştirilmiş
+  durum                 SiparisDurumu      @default(ONAY_BEKLEYEN)
+  kargoDurumu           KargoDurumu        @default(ADRESE_TESLIMAT)       
   
      // Cargo Info
    kargoSirketi          String?
@@ -481,44 +480,29 @@ model Siparis {
   onaylanmaTarihi       DateTime?
   
   @@index([durum])
-  @@index([onaylanmaDurumu])
-  @@index([hazirlanmaDurumu])
+  @@index([kargoDurumu])
   @@index([cariId])
   @@index([tarih])
   @@index([createdAt])
 }
 
+// Basitleştirilmiş Status Sistemi
 enum SiparisDurumu {
-  BEKLIYOR
-  ONAYLANDI
-  HAZIRLANIYOR
-  HAZIR
-  KARGODA
-  TESLIM_EDILDI
-  IPTAL
-}
-
-enum OnayDurumu {
-  BEKLIYOR
-  ONAYLANDI
-  REDDEDILDI
-}
-
-enum HazirlamaDurumu {
-  BEKLIYOR
-  HAZIRLANIYOR
-  HAZIRLANDI
-  PAKETLENDI
+  ONAY_BEKLEYEN      // Sipariş alındı, onay bekleniyor
+  HAZIRLLANACAK      // Onaylandı ama henüz üretilmemiş  
+  HAZIRLANDI         // Gramaj değişiklikleri ile onaylanmış, stoktan düşüldü
+  IPTAL              // İptal edilmiş
 }
 
 enum KargoDurumu {
-  HAZIRLANACAK
-  KARGOYA_VERILECEK
-  KARGODA
-  DAGITIMDA
-  TESLIM_EDILDI
-  TESLIM_EDILEMEDI
-  IADE
+  KARGOYA_VERILECEK  // Kargoya verilecek durumda
+  KARGODA            // Kargoda sevkiyatta
+  TESLIM_EDILDI      // Teslim edildi
+  SUBEYE_GONDERILECEK // Şubeye gönderilecek
+  SUBEDE_TESLIM      // Şubede teslim edildi
+  ADRESE_TESLIMAT    // Adrese teslimat (varsayılan)
+  SUBEDEN_SUBEYE     // Şubeden şubeye teslimat
+  IPTAL              // İptal edildi
 }
 
 enum OncelikSeviyesi {
@@ -558,7 +542,6 @@ model SiparisKalemi {
   kutu              Kutu?         @relation(fields: [kutuId], references: [id])
   
   // Production Info
-  hazirlanmaDurumu  HazirlamaDurumu @default(BEKLIYOR)
   uretimNotu        String?
   
   // Relations
@@ -566,7 +549,6 @@ model SiparisKalemi {
   
   @@index([siparisId])
   @@index([urunId])
-  @@index([hazirlanmaDurumu])
 }
 
 // ===================================================================
@@ -732,9 +714,19 @@ model RecipeIngredient {
   materialId        Int
   material          Material            @relation(fields: [materialId], references: [id])
   
-  // Quantity
+  // Quantity - Net Miktar (CSV'den)
   miktar            Float
   birim             MaterialBirimi
+  
+  // Fire hesaplamaları (CSV'den yeni alanlar)
+  fire1             Float?              @default(0)     // Fire oranı 1 (0-1 arası)
+  fire2             Float?              @default(0)     // Fire oranı 2 (0-1 arası)
+  gerMiktar         Float?              // Fire hesaplı gerçek miktar
+  gerMiktarTB       Float?              // Talep bazında gerçek miktar
+  
+  // Fiyat bilgileri (CSV'den)
+  sonFiyat          Float?              @default(0)     // Son fiyat
+  maliyet           Float?              @default(0)     // Hesaplanan maliyet
   
   // Notes
   hazirlamaNotu     String?             // "ince doğranmış", "kaynatılmış" vs.

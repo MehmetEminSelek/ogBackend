@@ -11,7 +11,7 @@ export default async function handler(req, res) {
             where: { id: Number(id) },
             data: {
                 teslimTarihi,
-                kargoDurumu: 'Teslim Edildi',
+                kargoDurumu: 'TESLIM_EDILDI',
             },
         });
         res.status(200).json(updated);

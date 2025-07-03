@@ -25,6 +25,7 @@ export default async function handler(req, res) {
         ambalajlar,
         urunler,
         tepsiTavalar,
+        kutular,
         materials,
         cariler,
         kategoriler
@@ -34,6 +35,7 @@ export default async function handler(req, res) {
         prisma.ambalaj.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.urun.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.tepsiTava.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
+        prisma.kutu.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.material.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.cari.findMany({
           where: { aktif: true },
@@ -95,6 +97,17 @@ export default async function handler(req, res) {
           fiyat: item.fiyat || 0,
           aciklama: item.aciklama
         })),
+        kutular: kutular.map(item => ({
+          id: item.id,
+          ad: item.ad,
+          fiyat: item.fiyat || 0,
+          aciklama: item.aciklama
+        })),
+        // Alıcı tipleri için sabit değerler (enum-like)
+        aliciTipleri: [
+          { id: 1, ad: 'Sadece Gönderen' },
+          { id: 2, ad: 'Gönderen ve Alıcı' }
+        ],
         kategoriler: kategoriler.map(item => ({
           id: item.id,
           ad: item.ad,

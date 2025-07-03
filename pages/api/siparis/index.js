@@ -3,6 +3,7 @@
 
 import prisma from '../../../lib/prisma'; // Prisma Client import yolunu kontrol et
 import { Prisma } from '@prisma/client'; // Hata tipleri için import
+import { calculateOrderItemPrice } from '../../../lib/fiyat'; // Yeni fiyatlandırma sistemi
 
 // Safe imports - fallback to no-op functions if not available
 let notifyNewOrder = (data) => {
@@ -40,49 +41,10 @@ const simplePerformanceMonitor = (handler) => {
     };
 };
 
-// Yardımcı fonksiyon: Belirli bir tarih için ürün fiyatını bulur
-async function getPriceForDate(tx, urunId, birim, tarih) { // tx parametresi eklendi
-    if (!urunId || !birim || !tarih) return 0;
-
-    // Birim eşleştirmesi - Gram için KG veya GR fiyatını ara
-    let targetBirimler = [];
-    if (birim.toLowerCase() === 'gram') {
-        targetBirimler = ['KG', 'GR']; // Hem KG hem GR fiyatını ara
-    } else {
-        targetBirimler = [birim]; // Adet, Porsiyon vb. için direkt ara
-    }
-
-    let fiyatKaydi = null;
-
-    // Önce KG, sonra GR dene
-    for (const targetBirim of targetBirimler) {
-        fiyatKaydi = await tx.fiyat.findFirst({
-            where: {
-                urunId: urunId,
-                birim: targetBirim,
-                gecerliTarih: { lte: tarih },
-                // Bitiş tarihi kontrolü (şemada varsa)
-                OR: [
-                    { bitisTarihi: null }, // Bitiş tarihi yoksa hala geçerlidir
-                    { bitisTarihi: { gte: tarih } } // Veya bitiş tarihi sorgu tarihine eşit veya sonra olmalı
-                ]
-            },
-            orderBy: { gecerliTarih: 'desc' }, // En güncel geçerli fiyatı bul
-        });
-
-        if (fiyatKaydi) {
-            console.log(`✅ Fiyat bulundu: urunId=${urunId}, birim=${targetBirim}, tarih=${tarih.toISOString().split('T')[0]}, fiyat=${fiyatKaydi.fiyat}`);
-            break; // İlk bulunan fiyatı kullan
-        }
-    }
-
-    if (!fiyatKaydi) {
-        console.log(`❌ Fiyat bulunamadı: urunId=${urunId}, arananBirimler=${targetBirimler.join(',')}, tarih=${tarih.toISOString().split('T')[0]}`);
-        return 0;
-    }
-
-    // Bulunan fiyatı döndür
-    return fiyatKaydi.fiyat || 0;
+// Yardımcı fonksiyon: Yeni fiyatlandırma sistemini kullanır
+async function calculateOrderPrice(urunId, miktar, birim, tarih) {
+    const result = await calculateOrderItemPrice(urunId, miktar, birim, tarih);
+    return result;
 }
 
 // Yardımcı fonksiyon: Tepsi/Tava fiyatını bulur
@@ -129,10 +91,11 @@ async function getOzelTepsiKalemleri(tx, ozelTepsiId) {
     }));
 }
 
-// Sipariş toplam tutarını hesapla
+// Sipariş toplam tutarını hesapla (KDV DAHİL)
 function calculateOrderTotal(siparisKalemleri, toplamTepsiMaliyeti, kargoUcreti, digerHizmetTutari) {
     const urunToplami = siparisKalemleri.reduce((total, kalem) => {
-        const kalemTutari = (kalem.birimFiyat || 0) * (kalem.miktar || 0);
+        // toplamTutar KDV dahil toplam değerdir
+        const kalemTutari = kalem.toplamTutar || 0;
         return total + kalemTutari;
     }, 0);
 
@@ -174,7 +137,7 @@ async function handlePost(req, res) {
     siparisTarihi.setHours(0, 0, 0, 0); // Sadece tarih kısmı
 
     const teslimatTuru = await prisma.teslimatTuru.findUnique({ where: { id: parseInt(teslimatTuruId) } });
-    let kargoDurumuToSet = 'Kargoya Verilecek'; // Varsayılan durum
+    let kargoDurumuToSet = 'ADRESE_TESLIMAT'; // Varsayılan değer
 
     if (teslimatTuru) {
         switch (teslimatTuru.kodu) {
@@ -182,16 +145,16 @@ async function handlePost(req, res) {
             case 'TT003': // MTN Kargo
             case 'TT004': // Otobüs
             case 'TT006': // Yurtiçi Kargo
-                kargoDurumuToSet = 'Kargoya Verilecek';
+                kargoDurumuToSet = 'KARGOYA_VERILECEK';
                 break;
             case 'TT002': // Şubeden Alacak
-                kargoDurumuToSet = 'Şubeden Alacak';
+                kargoDurumuToSet = 'SUBEDE_TESLIM';
                 break;
             case 'TT007': // Şubeye Gönderilecek
-                kargoDurumuToSet = 'Şubeye Gönderilecek';
+                kargoDurumuToSet = 'SUBEYE_GONDERILECEK';
                 break;
             default:
-                kargoDurumuToSet = 'Kargoya Verilecek'; // Bilinmeyen durumlar için varsayılan
+                kargoDurumuToSet = 'ADRESE_TESLIMAT'; // Bilinmeyen durumlar için varsayılan
         }
     }
 
@@ -241,18 +204,18 @@ async function handlePost(req, res) {
                     tarih: siparisTarihi,
                     teslimatTuruId: parseInt(teslimatTuruId),
                     subeId: subeId ? parseInt(subeId) : null,
-                    gonderenTipiId: gonderenTipiId ? parseInt(gonderenTipiId) : null,
+                    // gonderenTipiId alanı schema'da yok, bu sadece frontend UI logic için kullanılıyor
                     gonderenAdi,
                     gonderenTel,
                     aliciAdi: aliciAdi || null,
                     aliciTel: aliciTel || null,
-                    adres: adres || null,
-                    aciklama: aciklama || null,
-                    gorunecekAd: gorunecekAd || null,
-                    toplamTepsiMaliyeti: hesaplananToplamTepsiMaliyeti,
+                    teslimatAdresi: adres || null,  // schema'da adres değil teslimatAdresi var
+                    siparisNotu: aciklama || null,  // schema'da aciklama değil siparisNotu var
+                    // gorunecekAd alanı schema'da yok - kaldırıldı
+                    // toplamTepsiMaliyeti alanı schema'da yok - kaldırıldı  
                     kargoUcreti: kargoUcretiStr ? parseFloat(kargoUcretiStr) : 0,
                     digerHizmetTutari: digerHizmetTutariStr ? parseFloat(digerHizmetTutariStr) : 0,
-                    kargoDurumu: kargoDurumuToSet,
+                    kargoDurumu: kargoDurumuToSet, // Düzeltilmiş enum değeri
                     // onaylandiMi varsayılan olarak false olacak
                 },
             });
@@ -269,27 +232,47 @@ async function handlePost(req, res) {
                 }
 
                 const urunId = parseInt(kalem.urunId);
-                const birim = kalem.birim; // Frontend'den gelen birim (Gram, Adet vb.)
+                const birim = kalem.birim.toUpperCase();
                 const miktar = parseFloat(kalem.miktar);
 
-                // O anki geçerli birim fiyatı (KG veya Adet) bul
-                // Gram için KG fiyatı, Adet için Adet fiyatı aranacak
-                const fiyatBirim = birim.toLowerCase() === 'gram' ? 'KG' : birim;
-                const birimFiyat = await getPriceForDate(tx, urunId, fiyatBirim, siparisTarihi);
+                // Ürün bilgisini al (ad ve kod için)
+                const urun = await tx.urun.findUnique({
+                    where: { id: urunId },
+                    select: { ad: true, kod: true }
+                });
+
+                if (!urun) {
+                    console.warn(`Ürün bulunamadı: urunId=${urunId}`);
+                    continue; // Bu kalemi atla
+                }
+
+                // Yeni fiyatlandırma sistemi kullan - KDV dahil
+                const priceResult = await calculateOrderPrice(urunId, miktar, birim, siparisTarihi);
+                const birimFiyat = priceResult.birimFiyat;
+                const araToplam = priceResult.araToplam;
+                const kdvOrani = priceResult.kdvOrani;
+                const kdvTutari = priceResult.kdvTutari;
+                const iskonto = 0; // Şimdilik iskonto yok
+                const toplamTutar = priceResult.toplamFiyat - iskonto;
 
                 if (birimFiyat === 0) {
-                    console.warn(`!!! Fiyat bulunamadı: urunId=${urunId}, birim=${fiyatBirim}, tarih=${siparisTarihi.toISOString().split('T')[0]}`);
-                    // Fiyat bulunamazsa ne yapılacağına karar verilmeli.
-                    // Şimdilik 0 olarak kaydediyoruz ama belki hata vermek daha iyi olabilir.
+                    console.warn(`!!! Fiyat bulunamadı: urunId=${urunId}, birim=${birim}, tarih=${siparisTarihi.toISOString().split('T')[0]}`);
                 }
 
                 const siparisKalemi = {
                     siparisId: olusturulanSiparis.id,
                     ambalajId: parseInt(kalem.ambalajId),
                     urunId: urunId,
+                    urunAdi: urun.ad,
+                    urunKodu: urun.kod,
                     miktar: miktar,
-                    birim: birim, // Frontend'den gelen orijinal birimi kaydet (Gram, Adet vb.)
-                    birimFiyat: birimFiyat, // <<< Hesaplanan/Bulunan KG veya Adet fiyatını kaydet
+                    birim: birim,
+                    birimFiyat: birimFiyat,
+                    kdvOrani: kdvOrani,
+                    iskonto: iskonto,
+                    araToplam: araToplam,
+                    kdvTutari: kdvTutari,
+                    toplamTutar: toplamTutar,
                     kutuId: kalem.kutuId ? parseInt(kalem.kutuId) : null,
                     tepsiTavaId: kalem.tepsiTavaId ? parseInt(kalem.tepsiTavaId) : null,
                 };
@@ -302,17 +285,21 @@ async function handlePost(req, res) {
 
             if (toplamEklenenKalem === 0) { throw new Error("Siparişe eklenecek geçerli ürün bulunamadı."); }
 
-            // Sipariş toplamını hesapla ve güncelle
-            const orderTotal = calculateOrderTotal(
-                processedKalemler,
-                hesaplananToplamTepsiMaliyeti,
-                parseFloat(kargoUcretiStr || 0),
-                parseFloat(digerHizmetTutariStr || 0)
-            );
+            // Sipariş toplamlarını hesapla ve güncelle
+            const araToplam = processedKalemler.reduce((sum, kalem) => sum + parseFloat(kalem.araToplam || 0), 0);
+            const kdvToplam = processedKalemler.reduce((sum, kalem) => sum + parseFloat(kalem.kdvTutari || 0), 0);
+            const kargoUcretiFloat = parseFloat(kargoUcretiStr || 0);
+            const digerHizmetTutariFloat = parseFloat(digerHizmetTutariStr || 0);
+
+            const toplamTutar = araToplam + kdvToplam + hesaplananToplamTepsiMaliyeti + kargoUcretiFloat + digerHizmetTutariFloat;
 
             await tx.siparis.update({
                 where: { id: olusturulanSiparis.id },
-                data: { birimFiyat: orderTotal }
+                data: {
+                    araToplam: araToplam,
+                    kdvToplam: kdvToplam,
+                    toplamTutar: toplamTutar
+                }
             });
 
             // Sonuç olarak güncellenmiş siparişi döndür (kalemler dahil)
@@ -334,13 +321,13 @@ async function handlePost(req, res) {
         }); // Transaction sonu
 
         // Audit log
-        auditLogger.orderCreated(yeniSiparis.id, req.user?.id || null, yeniSiparis.birimFiyat);
+        auditLogger.orderCreated(yeniSiparis.id, req.user?.id || null, yeniSiparis.toplamTutar);
 
         // Real-time notification
         notifyNewOrder({
             orderId: yeniSiparis.id,
             customerName: yeniSiparis.gonderenAdi,
-            amount: yeniSiparis.birimFiyat,
+            amount: yeniSiparis.toplamTutar,
             status: 'pending',
             delivery: yeniSiparis.teslimatTuru?.ad
         });

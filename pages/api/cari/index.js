@@ -6,48 +6,50 @@ export default async function handler(req, res) {
         const cariler = await prisma.cari.findMany({
             orderBy: { ad: 'asc' },
             include: {
-                adresler: true,
+                sube: true,
+                siparisler: { take: 5, orderBy: { createdAt: 'desc' } },
+                hareketler: { take: 5, orderBy: { createdAt: 'desc' } }
             },
         });
         return res.status(200).json(cariler);
     }
     if (req.method === 'POST') {
-        // Yeni cari ekle (çoklu adres desteği)
-        const { ad, telefon, email, aciklama, adresler } = req.body;
+        // Yeni cari ekle
+        const { ad, soyad, unvan, telefon, email, adres, il, ilce, postaKodu, musteriKodu, tipi, subeId } = req.body;
         if (!ad) return res.status(400).json({ error: 'Ad zorunlu' });
         const yeniCari = await prisma.cari.create({
             data: {
                 ad,
+                soyad,
+                unvan,
                 telefon,
                 email,
-                aciklama,
-                adresler: adresler && Array.isArray(adresler)
-                    ? {
-                        create: adresler.map(a => ({ tip: a.tip || 'Genel', adres: a.adres }))
-                    }
-                    : undefined,
+                adres,
+                il,
+                ilce,
+                postaKodu,
+                musteriKodu: musteriKodu || `MUS${Date.now()}`,
+                tipi: tipi || 'BIREYSEL',
+                subeId: subeId ? Number(subeId) : null
             },
-            include: { adresler: true },
+            include: { sube: true },
         });
         return res.status(201).json(yeniCari);
     }
     if (req.method === 'PUT') {
         // Cari güncelle
-        const { id, adresler, ...otherData } = req.body;
+        const { id, ...otherData } = req.body;
         if (!id) return res.status(400).json({ error: 'ID zorunlu' });
         const updateData = { ...otherData };
         delete updateData.hareketler;
         delete updateData.siparisler;
-        if (Array.isArray(adresler)) {
-            updateData.adresler = {
-                deleteMany: {},
-                create: adresler.map(a => ({ tip: a.tip || 'Genel', adres: a.adres }))
-            };
-        }
+        delete updateData.sube;
+        delete updateData.odemeler;
+
         const guncellenen = await prisma.cari.update({
             where: { id: Number(id) },
             data: updateData,
-            include: { adresler: true },
+            include: { sube: true },
         });
         return res.status(200).json(guncellenen);
     }

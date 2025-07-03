@@ -43,22 +43,42 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Güncellenecek alan yok.' });
         }
 
-        // Kargo durumu validasyonu
+        // Kargo durumu validasyonu ve dönüşümü
         if (updateData.kargoDurumu) {
-            const validKargoDurumlari = [
-                'Kargoya Verilecek',
-                'Kargoda',
-                'Teslim Edildi',
-                'Şubeye Gönderilecek',
-                'Şubede Teslim',
-                'İptal'
-            ];
+            // Frontend'den gelen string değerleri enum değerlerine dönüştür
+            const kargoDurumuMapping = {
+                'Kargoya Verilecek': 'KARGOYA_VERILECEK',
+                'Kargoda': 'KARGODA',
+                'Teslim Edildi': 'TESLIM_EDILDI',
+                'Şubeye Gönderilecek': 'SUBEYE_GONDERILECEK',
+                'Şubede Teslim': 'SUBEDE_TESLIM',
+                'İptal': 'IPTAL',
+                'Adrese Teslimat': 'ADRESE_TESLIMAT',
+                'Şubeden Şubeye': 'SUBEDEN_SUBEYE'
+            };
 
-            if (!validKargoDurumlari.includes(updateData.kargoDurumu)) {
-                return res.status(400).json({
-                    message: 'Geçersiz kargo durumu.',
-                    validDurumlar: validKargoDurumlari
-                });
+            const mappedDurum = kargoDurumuMapping[updateData.kargoDurumu];
+            if (mappedDurum) {
+                updateData.kargoDurumu = mappedDurum;
+            } else {
+                // Eğer zaten enum değeri ise direkt kullan
+                const validKargoDurumlari = [
+                    'KARGOYA_VERILECEK',
+                    'KARGODA',
+                    'TESLIM_EDILDI',
+                    'SUBEYE_GONDERILECEK',
+                    'SUBEDE_TESLIM',
+                    'ADRESE_TESLIMAT',
+                    'SUBEDEN_SUBEYE',
+                    'IPTAL'
+                ];
+
+                if (!validKargoDurumlari.includes(updateData.kargoDurumu)) {
+                    return res.status(400).json({
+                        message: 'Geçersiz kargo durumu.',
+                        validDurumlar: Object.keys(kargoDurumuMapping)
+                    });
+                }
             }
         }
 

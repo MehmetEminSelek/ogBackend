@@ -10,12 +10,27 @@ export default async function handler(req, res) {
         if (!hedefSubeId) {
             return res.status(400).json({ message: 'hedefSubeId zorunlu.' });
         }
+
+        // Kargo durumu dönüşümü
+        let mappedKargoDurumu = 'SUBEYE_GONDERILECEK'; // Varsayılan
+        if (kargoDurumu) {
+            const kargoDurumuMapping = {
+                'Şubeye Gönderilecek': 'SUBEYE_GONDERILECEK',
+                'Şubede Teslim': 'SUBEDE_TESLIM',
+                'Kargoya Verilecek': 'KARGOYA_VERILECEK',
+                'Kargoda': 'KARGODA',
+                'Teslim Edildi': 'TESLIM_EDILDI',
+                'İptal': 'IPTAL'
+            };
+            mappedKargoDurumu = kargoDurumuMapping[kargoDurumu] || 'SUBEYE_GONDERILECEK';
+        }
+
         const updated = await prisma.siparis.update({
             where: { id: Number(id) },
             data: {
                 hedefSubeId: Number(hedefSubeId),
                 kargoNotu: kargoNotu || undefined,
-                kargoDurumu: kargoDurumu || 'Şubeye Gönderilecek',
+                kargoDurumu: mappedKargoDurumu,
             },
         });
         res.status(200).json(updated);

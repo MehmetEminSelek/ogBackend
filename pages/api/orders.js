@@ -1,6 +1,7 @@
 // pages/api/orders.js
 import prisma from '../../lib/prisma';
 import { Prisma } from '@prisma/client';
+import { recalculateOrderItemPrices } from '../../lib/fiyat'; // Yeni fiyatlandırma sistemi
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,8 +17,25 @@ export default async function handler(req, res) {
       console.log(`GET /api/orders isteği alındı. Parametreler:`, req.query);
 
       const whereClause = {};
-      if (status === 'pending') { whereClause.onaylandiMi = false; }
-      else if (status === 'approved') { whereClause.onaylandiMi = true; }
+      // Yeni basitleştirilmiş status sistemi
+      if (status === 'pending') { whereClause.durum = 'ONAY_BEKLEYEN'; }
+      else if (status === 'approved') { whereClause.durum = 'HAZIRLLANACAK'; }
+      else if (status === 'ready') { whereClause.durum = 'HAZIRLANDI'; }
+
+      // Kargo durumu filtresi ekle
+      if (req.query.kargoDurumu) {
+        const kargoDurumuMapping = {
+          'Kargoya Verilecek': 'KARGOYA_VERILECEK',
+          'Kargoda': 'KARGODA',
+          'Teslim Edildi': 'TESLIM_EDILDI',
+          'Şubeye Gönderilecek': 'SUBEYE_GONDERILECEK',
+          'Şubede Teslim': 'SUBEDE_TESLIM',
+          'Adrese Teslimat': 'ADRESE_TESLIMAT',
+          'Şubeden Şubeye': 'SUBEDEN_SUBEYE',
+          'İptal': 'IPTAL'
+        };
+        whereClause.kargoDurumu = kargoDurumuMapping[req.query.kargoDurumu] || req.query.kargoDurumu;
+      }
 
       if (startDate && endDate) {
         try {
@@ -37,7 +55,7 @@ export default async function handler(req, res) {
         include: {
           teslimatTuru: { select: { ad: true } },
           sube: { select: { ad: true } },
-          gonderenAliciTipi: { select: { ad: true } },
+          cari: { select: { id: true, ad: true, musteriKodu: true } },
           kalemler: {
             orderBy: { id: 'asc' },
             select: {
@@ -57,8 +75,24 @@ export default async function handler(req, res) {
         }
       });
 
-      console.log(`${siparisler.length} adet sipariş bulundu.`);
-      return res.status(200).json(siparisler);
+      // Fiyatları yeni sistem ile yeniden hesapla
+      const duzeltilmisSiparisler = await Promise.all(
+        siparisler.map(async (siparis) => {
+          try {
+            const correctedKalemler = await recalculateOrderItemPrices(siparis.kalemler, siparis.tarih);
+            return {
+              ...siparis,
+              kalemler: correctedKalemler
+            };
+          } catch (error) {
+            console.warn(`Sipariş ${siparis.id} fiyat düzeltmesi yapılamadı:`, error.message);
+            return siparis; // Hata durumunda orijinal siparişi döndür
+          }
+        })
+      );
+
+      console.log(`${duzeltilmisSiparisler.length} adet sipariş bulundu.`);
+      return res.status(200).json(duzeltilmisSiparisler);
 
     } catch (error) {
       console.error('❌ GET /api/orders HATA:', error);
