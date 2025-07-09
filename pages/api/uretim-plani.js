@@ -40,11 +40,54 @@ export default async function handler(req, res) {
 
             console.log('✅ Üretim planı tamamlandı', summary);
 
+            // DEBUG: Sipariş kalemlerini kontrol et
+            console.log('🔍 DEBUG - Hazırlanacak sipariş sayısı:', hazirlanacakSiparisler.length);
+            if (hazirlanacakSiparisler.length > 0) {
+                console.log('🔍 DEBUG - İlk sipariş kalemleri:', hazirlanacakSiparisler[0].kalemler?.length || 0);
+            }
+            console.log('🔍 DEBUG - Hazırlanan sipariş sayısı:', hazirlanenSiparisler.length);
+            if (hazirlanenSiparisler.length > 0) {
+                console.log('🔍 DEBUG - İlk sipariş kalemleri:', hazirlanenSiparisler[0].kalemler?.length || 0);
+            }
+
+            // Frontend'in beklediği format
+            const formattedData = {
+                genel: {
+                    bekleyenMaliyet: summary.bekleyenMaliyet,
+                    tamamlanmisMaliyet: summary.tamamlanmisMaliyet,
+                    toplamCiro: summary.toplamCiro,
+                    toplamKar: summary.toplamKar,
+                    toplamSiparis: hazirlanacakSiparisler.length + hazirlanenSiparisler.length
+                },
+                hazirlanacaklar: {
+                    siparisler: hazirlanacakSiparisler.map(siparis => ({
+                        ...siparis,
+                        cariAdi: siparis.cariAdi,
+                        // Kalem seviyesinde maliyet hesaplama
+                        kalemler: siparis.kalemler.map(kalem => ({
+                            ...kalem,
+                            birimMaliyet: calculateKalemBirimMaliyet(kalem, siparis.maliyetDetay),
+                            toplamMaliyet: calculateKalemToplamMaliyet(kalem, siparis.maliyetDetay)
+                        }))
+                    }))
+                },
+                hazırlananlar: {
+                    siparisler: hazirlanenSiparisler.map(siparis => ({
+                        ...siparis,
+                        cariAdi: siparis.cariAdi,
+                        // Kalem seviyesinde maliyet hesaplama
+                        kalemler: siparis.kalemler.map(kalem => ({
+                            ...kalem,
+                            birimMaliyet: calculateKalemBirimMaliyet(kalem, siparis.maliyetDetay),
+                            toplamMaliyet: calculateKalemToplamMaliyet(kalem, siparis.maliyetDetay)
+                        }))
+                    }))
+                }
+            };
+
             return res.status(200).json({
                 success: true,
-                summary,
-                hazirlanacakSiparisler,
-                hazirlanenSiparisler,
+                data: formattedData,
                 tarihalAraligi: { start, end }
             });
 
@@ -61,12 +104,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
 }
 
-// Hazırlanacak siparişleri getir (Bekliyor durumunda)
+// Hazırlanacak siparişleri getir (Onay bekleyen ve hazırlanacak durumunda)
 async function getHazirlanacakSiparisler(startDate, endDate) {
     const siparisler = await prisma.siparis.findMany({
         where: {
-            onaylanmaDurumu: 'ONAYLANDI',
-            hazirlanmaDurumu: 'BEKLIYOR',
+            durum: {
+                in: ['ONAY_BEKLEYEN', 'HAZIRLLANACAK']
+            },
             tarih: {
                 gte: startDate,
                 lte: endDate
@@ -131,10 +175,7 @@ async function getHazirlanacakSiparisler(startDate, endDate) {
 async function getHazirlanenSiparisler(startDate, endDate) {
     const siparisler = await prisma.siparis.findMany({
         where: {
-            onaylanmaDurumu: 'ONAYLANDI',
-            hazirlanmaDurumu: {
-                in: ['HAZIRLANDI', 'PAKETLENDI']
-            },
+            durum: 'HAZIRLANDI',
             tarih: {
                 gte: startDate,
                 lte: endDate
@@ -287,4 +328,37 @@ function convertToKg(miktar, birim) {
     };
 
     return miktar * (carpanlar[birim] || 1);
+}
+
+// Kalem birim maliyet hesaplama
+function calculateKalemBirimMaliyet(kalem, maliyetDetay) {
+    if (!maliyetDetay || !maliyetDetay.malzemeDetaylari) {
+        return 0;
+    }
+
+    // Bu kalem için toplam maliyet
+    const kalemMaliyeti = maliyetDetay.malzemeDetaylari
+        .filter(m => m.kalemId === kalem.id)
+        .reduce((sum, m) => sum + m.toplamMaliyet, 0);
+
+    // Birim maliyet = toplam maliyet / miktar
+    const siparisKg = convertToKg(kalem.miktar, kalem.birim);
+    return siparisKg > 0 ? kalemMaliyeti / siparisKg : 0;
+}
+
+// Kalem toplam maliyet hesaplama
+function calculateKalemToplamMaliyet(kalem, maliyetDetay) {
+    if (!maliyetDetay || !maliyetDetay.malzemeDetaylari) {
+        return 0;
+    }
+
+    // Bu kalem için toplam maliyet
+    const kalemMaliyeti = maliyetDetay.malzemeDetaylari
+        .filter(m => m.kalemId === kalem.id)
+        .reduce((sum, m) => sum + m.toplamMaliyet, 0);
+
+    // Ambalaj maliyeti de ekle (kalem başına paylaştır)
+    const ambalajPayi = maliyetDetay.ambalajMaliyeti / maliyetDetay.urunSayisi;
+
+    return kalemMaliyeti + ambalajPayi;
 } 

@@ -1,6 +1,7 @@
 import prisma from '../../lib/prisma';
+import { withRBAC, PERMISSIONS } from '../../lib/rbac';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -104,4 +105,9 @@ export default async function handler(req, res) {
         console.error('Satış raporu hatası:', error);
         return res.status(500).json({ message: 'Satış raporu oluşturulurken hata oluştu.', error: error.message });
     }
-} 
+}
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_REPORTS
+}); 

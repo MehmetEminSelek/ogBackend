@@ -16,7 +16,7 @@ export default async function handler(req, res) {
                 take: 200,
                 include: {
                     stok: { include: { hammadde: true, yariMamul: true, operasyonBirimi: true } },
-                    user: { select: { ad: true, email: true, role: true } }
+                    user: { select: { ad: true, email: true, rol: true } }
                 }
             });
             return res.status(200).json(hareketler);

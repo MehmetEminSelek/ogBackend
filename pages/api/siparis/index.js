@@ -2,7 +2,8 @@
 // Bu dosya YENİ siparişleri oluşturmak (POST) içindir.
 
 import prisma from '../../../lib/prisma'; // Prisma Client import yolunu kontrol et
-import { Prisma } from '@prisma/client'; // Hata tipleri için import
+import { Prisma } from '@prisma/client';
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac'; // Hata tipleri için import
 import { calculateOrderItemPrice } from '../../../lib/fiyat'; // Yeni fiyatlandırma sistemi
 
 // Safe imports - fallback to no-op functions if not available
@@ -73,18 +74,8 @@ async function getOzelTepsiKalemleri(tx, ozelTepsiId) {
         throw new Error('Özel tepsi bulunamadı');
     }
 
-    // Her ürün için varsayılan ambalaj bul (ilk ambalajı kullan)
-    const varsayilanAmbalaj = await tx.ambalaj.findFirst({
-        orderBy: { id: 'asc' }
-    });
-
-    if (!varsayilanAmbalaj) {
-        throw new Error('Varsayılan ambalaj bulunamadı');
-    }
-
-    // Her ürün için sipariş kalemi oluştur
+    // Her ürün için sipariş kalemi oluştur (ambalaj sistemi kaldırıldı)
     return ozelTepsi.icindekiler.map(icerik => ({
-        ambalajId: varsayilanAmbalaj.id,
         urunId: icerik.urunId,
         miktar: icerik.miktar,
         birim: 'KG'
@@ -261,7 +252,6 @@ async function handlePost(req, res) {
 
                 const siparisKalemi = {
                     siparisId: olusturulanSiparis.id,
-                    ambalajId: parseInt(kalem.ambalajId),
                     urunId: urunId,
                     urunAdi: urun.ad,
                     urunKodu: urun.kod,
@@ -309,7 +299,6 @@ async function handlePost(req, res) {
                     kalemler: {
                         include: {
                             urun: true,
-                            ambalaj: true,
                             tepsiTava: true,
                             kutu: true
                         }
@@ -366,7 +355,7 @@ async function handleGet(req, res) {
                 teslimatTuru: { select: { ad: true, kodu: true } },
                 sube: true,
                 gonderenAliciTipi: true,
-                kalemler: { include: { urun: true, ambalaj: true, tepsiTava: true, kutu: true } },
+                kalemler: { include: { urun: true, tepsiTava: true, kutu: true } },
                 odemeler: true,
             },
         });
@@ -376,7 +365,7 @@ async function handleGet(req, res) {
     }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     // CORS ve OPTIONS Handling
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Sadece GET, POST ve OPTIONS
@@ -399,3 +388,8 @@ export default async function handler(req, res) {
         }
     })(req, res);
 }
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_ORDERS // Base permission, specific methods will be checked inside
+});

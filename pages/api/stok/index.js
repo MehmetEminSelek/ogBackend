@@ -1,11 +1,7 @@
 import prisma from '../../../lib/prisma';
-// import { verifyAuth } from '../../../lib/auth'; // GELİŞTİRME İÇİN GEÇİCİ OLARAK KAPALI
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac';
 
-export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') return res.status(200).end();
+async function handler(req, res) {
 
     if (req.method === 'GET') {
         try {
@@ -116,4 +112,9 @@ export default async function handler(req, res) {
 
     res.setHeader('Allow', ['GET', 'POST', 'PATCH', 'OPTIONS']);
     return res.status(405).json({ message: `Method ${req.method} Not Allowed` });
-} 
+}
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_STOCK // Base permission, specific methods will be checked inside
+}); 

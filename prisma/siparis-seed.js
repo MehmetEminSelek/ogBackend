@@ -6,14 +6,13 @@ async function main() {
     console.log(" S�PAR�� TEST VER�LER� Y�KLEN�YOR...\n");
 
     // Mevcut verileri �ek
-    const [teslimatTurleri, subeler, cariler, urunler, tepsiTavalar, kutular, ambalajlar] = await Promise.all([
+    const [teslimatTurleri, subeler, cariler, urunler, tepsiTavalar, kutular] = await Promise.all([
         prisma.teslimatTuru.findMany({ where: { aktif: true } }),
         prisma.sube.findMany({ where: { aktif: true } }),
         prisma.cari.findMany({ where: { aktif: true }, take: 50 }),
         prisma.urun.findMany({ where: { aktif: true } }),
         prisma.tepsiTava.findMany({ where: { aktif: true } }),
-        prisma.kutu.findMany({ where: { aktif: true } }),
-        prisma.ambalaj.findMany({ where: { aktif: true } })
+        prisma.kutu.findMany({ where: { aktif: true } })
     ]);
 
     console.log(` Mevcut veriler:`);
@@ -22,8 +21,7 @@ async function main() {
     console.log(`    ${cariler.length} m��teri`);
     console.log(`    ${urunler.length} �r�n`);
     console.log(`    ${tepsiTavalar.length} tepsi/tava`);
-    console.log(`    ${kutular.length} kutu`);
-    console.log(`    ${ambalajlar.length} ambalaj t�r�\n`);
+    console.log(`    ${kutular.length} kutu\n`);
 
     // Test tarihleri (son 30 g�n i�inde)
     const testTarihleri = [];
@@ -124,17 +122,16 @@ async function main() {
                 // Rastgele �r�n se�
                 const urun = urunler[Math.floor(Math.random() * urunler.length)];
 
-                // Rastgele ambalaj se�
-                const ambalaj = ambalajlar[Math.floor(Math.random() * ambalajlar.length)];
-
-                // Ambalaj t�r�ne g�re tepsi/tava veya kutu se�
+                // Rastgele ambalaj tipi se� (kutu veya tepsi/tava)
                 let kutuId = null;
                 let tepsiTavaId = null;
 
-                if (ambalaj.ad === "Kutu" && kutular.length > 0) {
+                if (Math.random() > 0.5 && kutular.length > 0) {
+                    // Kutu se�
                     const kutu = kutular[Math.floor(Math.random() * kutular.length)];
                     kutuId = kutu.id;
-                } else if (ambalaj.ad === "Tepsi/Tava" && tepsiTavalar.length > 0) {
+                } else if (tepsiTavalar.length > 0) {
+                    // Tepsi/Tava se�
                     const tepsiTava = tepsiTavalar[Math.floor(Math.random() * tepsiTavalar.length)];
                     tepsiTavaId = tepsiTava.id;
                 }
@@ -145,7 +142,6 @@ async function main() {
                 await prisma.siparisKalemi.create({
                     data: {
                         siparisId: yeniSiparis.id,
-                        ambalajId: ambalaj.id,
                         urunId: urun.id,
                         miktar: miktar,
                         birim: "GRAM",

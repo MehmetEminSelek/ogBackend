@@ -1,29 +1,13 @@
 import prisma from '../../../lib/prisma';
 import bcrypt from 'bcrypt';
-import { verifyAuth } from '../../../lib/auth';
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac';
 
-export default async function handler(req, res) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+async function handler(req, res) {
 
     // GET - Personel listesi
     if (req.method === 'GET') {
         try {
-            // Auth kontrolü - GELİŞTİRME İÇİN GEÇİCİ OLARAK DEVRE DIŞI
-            // let user;
-            // try {
-            //     user = verifyAuth(req);
-            //     if (!['ADMIN', 'MANAGER'].includes(user.role)) {
-            //         return res.status(403).json({ message: 'Bu işlem için yetkiniz yok.' });
-            //     }
-            // } catch (e) {
-            //     return res.status(401).json({ message: 'Yetkisiz erişim.' });
-            // }
+            // Auth kontrolü RBAC middleware tarafından yapılıyor
 
             const users = await prisma.user.findMany({
                 select: {
@@ -32,16 +16,10 @@ export default async function handler(req, res) {
                     soyad: true,
                     email: true,
                     username: true,
-                    role: true,
+                    rol: true,
                     telefon: true,
                     aktif: true,
                     subeId: true,
-                    sube: {
-                        select: { ad: true, kod: true }
-                    },
-                    bolum: true,
-                    unvan: true,
-                    iseBaslamaTarihi: true,
                     gunlukUcret: true,
                     sgkDurumu: true,
                     girisYili: true,
@@ -64,16 +42,7 @@ export default async function handler(req, res) {
     // POST - Yeni personel ekle
     if (req.method === 'POST') {
         try {
-            // Auth kontrolü - GELİŞTİRME İÇİN GEÇİCİ OLARAK KAPALI
-            // let currentUser;
-            // try {
-            //     currentUser = verifyAuth(req);
-            //     if (!['ADMIN', 'MANAGER'].includes(currentUser.role)) {
-            //         return res.status(403).json({ message: 'Personel ekleme yetkiniz yok.' });
-            //     }
-            // } catch (e) {
-            //     return res.status(401).json({ message: 'Yetkisiz erişim.' });
-            // }
+            // Auth kontrolü RBAC middleware tarafından yapılıyor
 
             const {
                 ad,
@@ -81,7 +50,7 @@ export default async function handler(req, res) {
                 email,
                 username,
                 password,
-                role,
+                rol,
                 telefon,
                 subeId,
                 bolum,
@@ -93,7 +62,7 @@ export default async function handler(req, res) {
             } = req.body;
 
             // Zorunlu alanlar kontrolü
-            if (!ad || !email || !username || !password || !role) {
+            if (!ad || !email || !username || !password || !rol) {
                 return res.status(400).json({
                     message: 'Ad, email, kullanıcı adı, şifre ve rol zorunludur.'
                 });
@@ -132,18 +101,14 @@ export default async function handler(req, res) {
                     soyad,
                     email,
                     username,
-                    passwordHash: hashedPassword,
-                    role,
+                    password: hashedPassword,
+                    rol: rol,
                     telefon,
                     subeId: subeId ? parseInt(subeId) : null,
-                    bolum,
-                    unvan,
-                    iseBaslamaTarihi: iseBaslamaTarihi ? new Date(iseBaslamaTarihi) : null,
                     gunlukUcret: gunlukUcret ? parseFloat(gunlukUcret) : 0,
                     sgkDurumu: sgkDurumu || 'VAR',
                     girisYili,
-                    aktif: aktif !== undefined ? aktif : true,
-                    createdBy: 1 // Geçici olarak admin user ID
+                    aktif: aktif !== undefined ? aktif : true
                 },
                 select: {
                     id: true,
@@ -151,16 +116,10 @@ export default async function handler(req, res) {
                     soyad: true,
                     email: true,
                     username: true,
-                    role: true,
+                    rol: true,
                     telefon: true,
                     aktif: true,
                     subeId: true,
-                    sube: {
-                        select: { ad: true, kod: true }
-                    },
-                    bolum: true,
-                    unvan: true,
-                    iseBaslamaTarihi: true,
                     gunlukUcret: true,
                     sgkDurumu: true,
                     girisYili: true,
@@ -181,16 +140,7 @@ export default async function handler(req, res) {
     // PUT - Personel güncelle
     if (req.method === 'PUT') {
         try {
-            // Auth kontrolü - GELİŞTİRME İÇİN GEÇİCİ OLARAK KAPALI
-            // let currentUser;
-            // try {
-            //     currentUser = verifyAuth(req);
-            //     if (!['ADMIN', 'MANAGER'].includes(currentUser.role)) {
-            //         return res.status(403).json({ message: 'Personel güncelleme yetkiniz yok.' });
-            //     }
-            // } catch (e) {
-            //     return res.status(401).json({ message: 'Yetkisiz erişim.' });
-            // }
+            // Auth kontrolü RBAC middleware tarafından yapılıyor
 
             const {
                 id,
@@ -199,7 +149,7 @@ export default async function handler(req, res) {
                 email,
                 username,
                 password,
-                role,
+                rol,
                 telefon,
                 subeId,
                 bolum,
@@ -220,16 +170,12 @@ export default async function handler(req, res) {
                 soyad,
                 email,
                 username,
-                role,
+                rol: rol,
                 telefon,
                 subeId: subeId ? parseInt(subeId) : null,
-                bolum,
-                unvan,
-                iseBaslamaTarihi: iseBaslamaTarihi ? new Date(iseBaslamaTarihi) : null,
                 gunlukUcret: gunlukUcret ? parseFloat(gunlukUcret) : 0,
                 sgkDurumu: sgkDurumu || 'VAR',
-                aktif: aktif !== undefined ? aktif : true,
-                updatedBy: 1 // Geçici olarak admin user ID
+                aktif: aktif !== undefined ? aktif : true
             };
 
             // Giriş yılını güncelle
@@ -239,7 +185,7 @@ export default async function handler(req, res) {
 
             // Eğer şifre verilmişse hash'le
             if (password && password.trim() !== '') {
-                updateData.passwordHash = await bcrypt.hash(password, 12);
+                updateData.password = await bcrypt.hash(password, 12);
             }
 
             // Email uniqueness kontrolü (kendi kaydı hariç)
@@ -281,16 +227,10 @@ export default async function handler(req, res) {
                     soyad: true,
                     email: true,
                     username: true,
-                    role: true,
+                    rol: true,
                     telefon: true,
                     aktif: true,
                     subeId: true,
-                    sube: {
-                        select: { ad: true, kod: true }
-                    },
-                    bolum: true,
-                    unvan: true,
-                    iseBaslamaTarihi: true,
                     gunlukUcret: true,
                     sgkDurumu: true,
                     girisYili: true,
@@ -311,16 +251,7 @@ export default async function handler(req, res) {
     // DELETE - Personel sil
     if (req.method === 'DELETE') {
         try {
-            // Auth kontrolü - GELİŞTİRME İÇİN GEÇİCİ OLARAK KAPALI
-            // let currentUser;
-            // try {
-            //     currentUser = verifyAuth(req);
-            //     if (!['ADMIN'].includes(currentUser.role)) {
-            //         return res.status(403).json({ message: 'Personel silme yetkiniz yok.' });
-            //     }
-            // } catch (e) {
-            //     return res.status(401).json({ message: 'Yetkisiz erişim.' });
-            // }
+            // Auth kontrolü RBAC middleware tarafından yapılıyor
 
             const { id } = req.query;
 
@@ -345,3 +276,8 @@ export default async function handler(req, res) {
 
     return res.status(405).json({ message: 'İzin verilmeyen HTTP metodu.' });
 }
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_USERS // Base permission, specific methods will be checked inside
+});

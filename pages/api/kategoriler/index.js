@@ -59,7 +59,6 @@ async function getKategoriler(req, res) {
         const kategoriler = await prisma.urunKategori.findMany({
             where,
             orderBy: [
-                { siraNo: 'asc' },
                 { ad: 'asc' }
             ],
             include: {
@@ -92,10 +91,7 @@ async function createKategori(req, res) {
     const {
         ad,
         aciklama,
-        renk = '#2196F3',
-        ikon = 'mdi-package-variant',
-        aktif = true,
-        siraNo
+        aktif = true
     } = req.body;
 
     // Zorunlu alanları kontrol et
@@ -108,10 +104,7 @@ async function createKategori(req, res) {
             data: {
                 ad,
                 aciklama,
-                renk,
-                ikon,
-                aktif,
-                siraNo: siraNo ? parseInt(siraNo) : null
+                aktif
             }
         });
 
@@ -143,11 +136,6 @@ async function updateKategori(req, res) {
     }
 
     try {
-        // Sayısal alanları dönüştür
-        if (updateData.siraNo) {
-            updateData.siraNo = parseInt(updateData.siraNo);
-        }
-
         const guncellenenKategori = await prisma.urunKategori.update({
             where: { id: parseInt(id) },
             data: updateData,

@@ -23,7 +23,7 @@ export default async function handler(req, res) {
             // let currentUser;
             // try {
             //     currentUser = verifyAuth(req);
-            //     if (!['ADMIN'].includes(currentUser.role)) {
+            //     if (!['GENEL_MUDUR'].includes(currentUser.rol)) {
             //         return res.status(403).json({ message: 'Personel silme yetkiniz yok.' });
             //     }
             // } catch (e) {
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
             // let currentUser;
             // try {
             //     currentUser = verifyAuth(req);
-            //     if (!['ADMIN', 'MANAGER'].includes(currentUser.role)) {
+            //     if (!['GENEL_MUDUR', 'SUBE_MUDURU'].includes(currentUser.rol)) {
             //         return res.status(403).json({ message: 'Personel güncelleme yetkiniz yok.' });
             //     }
             // } catch (e) {
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
                 email,
                 username,
                 password,
-                role,
+                rol,
                 telefon,
                 subeId,
                 bolum,
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
                 soyad,
                 email,
                 username,
-                role,
+                rol,
                 telefon,
                 subeId: subeId ? parseInt(subeId) : null,
                 bolum,
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
                     soyad: true,
                     email: true,
                     username: true,
-                    role: true,
+                    rol: true,
                     telefon: true,
                     aktif: true,
                     subeId: true,

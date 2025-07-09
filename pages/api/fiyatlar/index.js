@@ -2,17 +2,9 @@
 // Gelişmiş Fiyat Yönetimi API'si
 
 import prisma from '../../../lib/prisma';
-// import { verifyAuth } from '../../../lib/auth'; // GELİŞTİRME İÇİN GEÇİCİ OLARAK KAPALI
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac';
 
-export default async function handler(req, res) {
-    // CORS ayarları
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+async function handler(req, res) {
 
     try {
         switch (req.method) {
@@ -181,4 +173,9 @@ async function deleteFiyat(req, res) {
             details: error.message
         });
     }
-} 
+}
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_FINANCIAL // Base permission, specific methods will be checked inside
+}); 

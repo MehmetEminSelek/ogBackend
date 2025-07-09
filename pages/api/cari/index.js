@@ -1,12 +1,12 @@
 import prisma from '../../../lib/prisma';
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
     if (req.method === 'GET') {
         // Cari listesi
         const cariler = await prisma.cari.findMany({
             orderBy: { ad: 'asc' },
             include: {
-                sube: true,
                 siparisler: { take: 5, orderBy: { createdAt: 'desc' } },
                 hareketler: { take: 5, orderBy: { createdAt: 'desc' } }
             },
@@ -21,7 +21,6 @@ export default async function handler(req, res) {
             data: {
                 ad,
                 soyad,
-                unvan,
                 telefon,
                 email,
                 adres,
@@ -29,10 +28,8 @@ export default async function handler(req, res) {
                 ilce,
                 postaKodu,
                 musteriKodu: musteriKodu || `MUS${Date.now()}`,
-                tipi: tipi || 'BIREYSEL',
-                subeId: subeId ? Number(subeId) : null
-            },
-            include: { sube: true },
+                tipi: tipi || 'MUSTERI'
+            }
         });
         return res.status(201).json(yeniCari);
     }
@@ -43,13 +40,11 @@ export default async function handler(req, res) {
         const updateData = { ...otherData };
         delete updateData.hareketler;
         delete updateData.siparisler;
-        delete updateData.sube;
         delete updateData.odemeler;
 
         const guncellenen = await prisma.cari.update({
             where: { id: Number(id) },
-            data: updateData,
-            include: { sube: true },
+            data: updateData
         });
         return res.status(200).json(guncellenen);
     }
@@ -62,4 +57,9 @@ export default async function handler(req, res) {
     }
     res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
     res.status(405).end(`Method ${req.method} Not Allowed`);
-} 
+}
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_CUSTOMERS // Base permission, specific methods will be checked inside
+}); 

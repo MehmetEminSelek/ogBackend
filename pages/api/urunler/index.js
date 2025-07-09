@@ -2,16 +2,9 @@
 // Kapsamlı Ürün Yönetimi API'si
 
 import prisma from '../../../lib/prisma';
+import { withRBAC, PERMISSIONS } from '../../../lib/rbac';
 
-export default async function handler(req, res) {
-    // CORS headers ekle
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
+async function handler(req, res) {
 
     try {
         switch (req.method) {
@@ -110,9 +103,7 @@ async function getUrunler(req, res) {
                 kategori: {
                     select: {
                         id: true,
-                        ad: true,
-                        renk: true,
-                        ikon: true
+                        ad: true
                     }
                 },
                 fiyatlar: {
@@ -418,4 +409,9 @@ async function deleteUrun(req, res) {
 
         return res.status(500).json({ error: 'Ürün silinirken hata oluştu' });
     }
-} 
+}
+
+// Export with RBAC protection
+export default withRBAC(handler, {
+    permission: PERMISSIONS.VIEW_PRODUCTS // Base permission, specific methods will be checked inside
+}); 

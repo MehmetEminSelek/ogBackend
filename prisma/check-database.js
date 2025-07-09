@@ -58,10 +58,7 @@ async function main() {
         kutular.slice(0, 3).forEach(kutu => console.log(`   • ${kutu.kod} - ${kutu.ad} (${kutu.fiyat} TL)`));
         if (kutular.length > 3) console.log(`   ... ve ${kutular.length - 3} tane daha`);
 
-        // Ambalajlar
-        const ambalajlar = await prisma.ambalaj.findMany();
-        console.log(`\n📦 Ambalajlar: ${ambalajlar.length} adet`);
-        ambalajlar.forEach(amb => console.log(`   • ${amb.kod} - ${amb.ad} (${amb.fiyat} TL)`));
+          // Ambalaj modeli kaldırıldı - TepsiTava ve Kutu kullanılıyor
 
         console.log(`\n🎉 TOPLAM VERİ ÖZETİ:`);
         console.log(`   • ${subeler.length} şube/operasyon birimi`);
@@ -73,7 +70,7 @@ async function main() {
         console.log(`   • ${fiyatlar.length} fiyat`);
         console.log(`   • ${tepsiTavalar.length} tepsi/tava`);
         console.log(`   • ${kutular.length} kutu`);
-        console.log(`   • ${ambalajlar.length} ambalaj türü`);
+        console.log(`   • Ambalaj modeli kaldırıldı (TepsiTava/Kutu kullanılıyor)`);
 
     } catch (error) {
         console.error('❌ Hata:', error);

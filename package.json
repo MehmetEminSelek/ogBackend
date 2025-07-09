@@ -14,7 +14,18 @@
     "generate": "prisma generate",
     "pull": "prisma db pull",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed": "node prisma/seeds/index.js",
+    "seed:clear": "node prisma/seeds/index.js clear",
+    "seed:hammade": "node -e \"require('./prisma/seeds/index').seedHammadeYariMamuller().then(console.log)\"",
+    "seed:sube": "node -e \"require('./prisma/seeds/index').seedSubeOperasyonBirimleri().then(console.log)\"",
+    "seed:personel": "node prisma/seeds/seed-personel-bilgileri.js",
+    "seed:cari": "node -e \"require('./prisma/seeds/index').seedCariMusteriler().then(console.log)\"",
+    "seed:urun": "node -e \"require('./prisma/seeds/index').seedGuncelUrunFiyatlari().then(console.log)\"",
+    "seed:recete": "node -e \"require('./prisma/seeds/index').seedReceteler().then(console.log)\"",
+    "seed:dropdown": "node -e \"require('./prisma/seeds/index').seedSiparisDropdownListeleri().then(console.log)\"",
+    "seed:odeme": "node -e \"require('./prisma/seeds/index').seedOdemeYontemleri().then(console.log)\"",
+    "db:reset": "npm run seed:clear && npm run seed"
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
@@ -25,6 +36,7 @@
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
+    "csv-parser": "^3.2.0",
     "dotenv": "^16.5.0",
     "express-rate-limit": "^7.1.5",
     "formidable": "^3.5.4",

@@ -18,11 +18,10 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     console.log('GET /api/dropdown isteği alındı...');
     try {
-      // Verileri paralel çek - YENİ SCHEMA
+      // Verileri paralel çek - AMBALAJ MODELİ KALDIRILDI
       const [
         teslimatTurleri,
         subeler,
-        ambalajlar,
         urunler,
         tepsiTavalar,
         kutular,
@@ -32,7 +31,6 @@ export default async function handler(req, res) {
       ] = await Promise.all([
         prisma.teslimatTuru.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.sube.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
-        prisma.ambalaj.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.urun.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.tepsiTava.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
         prisma.kutu.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } }),
@@ -57,11 +55,10 @@ export default async function handler(req, res) {
 
       console.log('Veritabanından dropdown verileri başarıyla çekildi.');
 
-      // Materials'ı tipine göre grupla
+      // Materials'ı tipine göre grupla - AMBALAJ_MALZEMESI enum'u kaldırıldı
       const hammaddeler = materials.filter(m => m.tipi === 'HAMMADDE');
       const yariMamuller = materials.filter(m => m.tipi === 'YARI_MAMUL');
       const yardimciMaddeler = materials.filter(m => m.tipi === 'YARDIMCI_MADDE');
-      const ambalajMalzemeleri = materials.filter(m => m.tipi === 'AMBALAJ_MALZEMESI');
 
       // Yanıtı formatla (ID ve Ad ile)
       const responseData = {
@@ -78,12 +75,7 @@ export default async function handler(req, res) {
           telefon: item.telefon,
           adres: item.adres
         })),
-        ambalajlar: ambalajlar.map(item => ({
-          id: item.id,
-          ad: item.ad,
-          fiyat: item.fiyat || 0,
-          aciklama: item.aciklama
-        })),
+        // Ambalaj modeli kaldırıldı - TepsiTava ve Kutu kullanılıyor
         urunler: urunler.map(item => ({
           id: item.id,
           ad: item.ad,
@@ -130,13 +122,6 @@ export default async function handler(req, res) {
           birimFiyat: item.birimFiyat || 0
         })),
         yardimciMaddeler: yardimciMaddeler.map(item => ({
-          id: item.id,
-          kod: item.kod,
-          ad: item.ad,
-          birim: item.birim,
-          birimFiyat: item.birimFiyat || 0
-        })),
-        ambalajMalzemeleri: ambalajMalzemeleri.map(item => ({
           id: item.id,
           kod: item.kod,
           ad: item.ad,
