@@ -8,7 +8,11 @@ async function handler(req, res) {
             orderBy: { ad: 'asc' },
             include: {
                 siparisler: { take: 5, orderBy: { createdAt: 'desc' } },
-                hareketler: { take: 5, orderBy: { createdAt: 'desc' } }
+                hareketler: { take: 5, orderBy: { createdAt: 'desc' } },
+                adresler: {
+                    where: { aktif: true },
+                    orderBy: [{ varsayilan: 'desc' }, { createdAt: 'asc' }]
+                }
             },
         });
         return res.status(200).json(cariler);

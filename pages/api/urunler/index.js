@@ -114,14 +114,13 @@ async function getUrunler(req, res) {
                             { bitisTarihi: { gte: new Date() } }
                         ]
                     },
-                    orderBy: { gecerliTarih: 'desc' },
+                    orderBy: { baslangicTarihi: 'desc' },
                     take: 1,
                     select: {
                         id: true,
-                        fiyat: true,
+                        kgFiyati: true,
                         birim: true,
-                        fiyatTipi: true,
-                        iskonto: true
+                        fiyatTipi: true
                     }
                 },
                 _count: {

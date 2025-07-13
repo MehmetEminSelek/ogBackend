@@ -1,0 +1,94 @@
+,Başlıklar,Görünürlük,Seçenekler,Ana Kural,Kurallar
+,Sipariş Numarası,Hiçbir zaman,,,otomatik oluşturulacak form
+atı örneği 000000000001 sadece database kayıt için arka çalışacak
+,,,,,
+,Kayıt Yapan Kullanıcı,Hiçbir zaman,,,sadece database kayıt için arka çalışacak
+,Teslimat Türü,Her zaman,Kendisi Alacak,Sunulan bir şeçenek seçilmek zorunda," bu seçenek seçilirse ""adres"" alanı açılacak doldurulması zorunlu olacak"
+,,,Evine Gönderilecek,,"bu seçenek seçilirse ""adres"" alanı açılacak doldurulması zorunlu olacak"
+,,,Mtn,,"bu seçenek seçilirse ""adres"" alanı açılacak doldurulması zorunlu olacak"
+,,,Otobüs ,,"bu seçenek seçilirse ""adres"" alanı açılacak doldurulması zorunlu olacak"
+,,,Yurtiçi Kargo,,"bu seçenek seçilirse ""adres"" alanı açılacak doldurulması zorunlu olacak"
+,,,Şubeden Teslim,,"bu seçenek seçilirse ""şube"" başlığı alanı açılacak doldurulması zorunlu olacak"
+,Şube,Seçime bağlı,Hava-1,Sunulan bir şeçenek seçilmek zorunda,
+,,,İbrahimli,,
+,,,Hava-3,,
+,,,Karagöz,,
+,,,Otogar,,
+,,,Hitit,,
+,Sipariş Tarihi,Her zaman,tarih seçilecek tarih kutusu,tarih seçilecek tarih kutusu,doldurulmak zorunda
+,Gönderen/Alıcı,Her zaman,Tek Gönderen,Sunulan bir şeçenek seçilmek zorunda,
+,,,Gönderen ve Alıcı,,"bu seçenek seçilirse ""Alıcı Adı Soyadı""  ve ""Alıcı Telefonu"" başlığı alanı açılacak doldurulması zorunlu olacak"
+,Gönderen Adı Soyadı,Her zaman,,,doldurulmak zorunda
+,Gönderen Telefonu,Her zaman,,sadece sayı yazılabilir,doldurulmak zorunda 11 haneli telefon formatında
+,Alıcı Adı Soyadı,Seçime bağlı,,,doldurulmak zorunda
+,Alıcı Telefonu,Seçime bağlı,,sadece sayı yazılabilir,doldurulmak zorunda 11 haneli telefon formatında
+,Adres,Seçime bağlı,,,doldurulmak zorunda
+,Açıklama / Not,Her zaman,,,
+,Ambalaj,Her zaman,Tepsi/Tava,Sunulan bir şeçenek seçilmek zorunda,"bu seçenek seçilirse ""Tepsi/Tava"" başlığı alanı açılacak doldurulması zorunlu olacak"
+,,,Kutu,,"bu seçenek seçilirse ""Kutu"" başlığı alanı açılacak doldurulması zorunlu olacak"
+,Tepsi/Tava,Seçime bağlı,2 Li Tepsi,Sunulan bir şeçenek seçilmek zorunda,
+,,,3 Lü Tepsi,,
+,,,4 Lü Tepsi,,
+,,,"1,5 Lu Tava",,
+,,,2 Li Tava,,
+,,,"1,5 Lu Tepsi",,
+,,,1000 Lik Tava,,
+,,,1 Li Tava,,
+,,,1 Li Tepsi,,
+,,,"2,5 Lu Tepsi",,
+,,,5 Li Tepsi,,
+,,,800 Lük Tava,,
+,Kutu,Seçime bağlı,1 Kg Kutu,Sunulan bir şeçenek seçilmek zorunda,
+,,,1 Kg Kare Kutusu,,
+,,,"1,5 Kg Kutu",,
+,,,750 gr Kutu,,
+,,,500 gr Kutu,,
+,,,500 gr Kare Kutusu,,
+,,,250 gr Kutu,,
+,,,1 Kg TF Kutusu,,
+,,,500 gr TF Kutusu,,
+,,,1 Kg TAHTA TF Kutusu,,
+,,,500 gr TAHTA TF Kutusu,,
+,,,1 Kg POŞET TF,,
+,,,500 gr POŞET TF,,
+,,,Tekli Kare Kutusu,,
+,,,Tekli HD Kutusu,,
+,Ürün,Her zaman,Fıstıklı Yaş Baklava,Sunulan bir şeçenek seçilmek zorunda,
+,,,Fıstıklı Şöbiyet,,
+,,,Fıstıklı Kuru Baklava,,
+,,,Fıstıklı Özel Kare Baklava,,
+,,,Fıstıklı Bülbül Yuvası,,
+,,,Fıstıklı Havuç Dilimi Baklava,,
+,,,Fıstıklı Dolama,,
+,,,Fıstık Ezmesi,,
+,,,Fıstıklı Kurabiye,,
+,,,Sade Kurabiye,,
+,,,Antep Peynirli Su Böreği,,
+,,,Tuzlu Antep Fıstığı,,
+,,,Fıstıklı Burma Kadayıf,,
+,,,Cevizli Yaş Baklava,,
+,,,Fıstıklı Midye,,
+,,,Yılbaşı Tepsisi,,
+,,,Sargılı Fıstık Ezmesi,,
+,,,Bayram Tepsisi,,
+,,,Cevizli Bülbül Yuvası,,
+,,,Cevizli Eski Usûl Dolama,,
+,,,Cevizli Özel Kare Baklava,,
+,,,Cevizli Şöbiyet,,
+,,,Doğum Günü Tepsisi,,
+,,,Fındıklı Çikolatalı Midye Baklava,,
+,,,Fıstıklı Özel Şöbiyet,,
+,,,Fıstıklı Çikolatalı Midye Baklava,,
+,,,Fıstıklı Eski Usûl Dolama,,
+,,,Kare Fıstık Ezmesi,,
+,,,Fıstıklı Yaprak Şöbiyet,,
+,,,Karışık Baklava,,
+,,,Kaymaklı Baklava,,
+,,,Kaymaklı Havuç Dilimi Baklava,,
+,,,Özel Karışık Baklava,,
+,,,Yazılı Karışık Tepsi,,
+,,,Düz Kadayıf,,
+,,,Soğuk Baklava,,
+,,,Sade Yağ,,
+,,,İç Fıstık,,
+,Adet/Gramaj,Her zaman,,sadece sayı yazılabilir,doldurulmak zorunda

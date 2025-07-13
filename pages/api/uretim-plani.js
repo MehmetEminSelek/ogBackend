@@ -144,8 +144,8 @@ async function getHazirlanacakSiparisler(startDate, endDate) {
                             }
                         }
                     },
-                    ambalaj: { select: { ad: true, fiyat: true } },
-                    tepsiTava: { select: { ad: true, fiyat: true } }
+                    kutu: { select: { ad: true } },
+                    tepsiTava: { select: { ad: true } } // fiyat alanı yok
                 }
             }
         },
@@ -209,8 +209,8 @@ async function getHazirlanenSiparisler(startDate, endDate) {
                             }
                         }
                     },
-                    ambalaj: { select: { ad: true, fiyat: true } },
-                    tepsiTava: { select: { ad: true, fiyat: true } }
+                    kutu: { select: { ad: true } },
+                    tepsiTava: { select: { ad: true } } // fiyat alanı yok
                 }
             }
         },
@@ -278,12 +278,12 @@ async function hesaplaSiparisMaliyeti(kalemler) {
             kalemMaliyet = urunMaliyeti * siparisKg;
         }
 
-        // Ambalaj maliyeti
-        if (kalem.ambalaj) {
-            ambalajMaliyeti += kalem.ambalaj.fiyat || 0;
+        // Ambalaj maliyeti (kutu ve tepsi/tava)
+        if (kalem.kutu) {
+            // Kutu için fiyat bilgisi şu an yok, ihtiyaç olursa eklenir
         }
         if (kalem.tepsiTava) {
-            ambalajMaliyeti += kalem.tepsiTava.fiyat || 0;
+            // TepsiTava için fiyat bilgisi ayrı tabloda
         }
 
         toplamMaliyet += kalemMaliyet;

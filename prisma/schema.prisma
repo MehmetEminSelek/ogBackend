@@ -112,11 +112,13 @@ model Sube {
   kapanisSaat String? // "22:00"
 
   // Relations
-  personeller       User[]
-  siparisler        Siparis[]
-  hedefSiparisler   Siparis[]      @relation("HedefSube")
-  kaynakTransferler StokTransfer[] @relation("KaynakSube")
-  hedefTransferler  StokTransfer[] @relation("HedefSube")
+  personeller         User[]
+  siparisler          Siparis[]
+  hedefSiparisler     Siparis[]      @relation("HedefSube")
+  neredenSiparisler   Siparis[]      @relation("SubeNereden")   // Şubeden şubeye siparişlerde nereden
+  nereyeSiparisler    Siparis[]      @relation("SubeNereye")    // Şubeden şubeye siparişlerde nereye
+  kaynakTransferler   StokTransfer[] @relation("KaynakSube")
+  hedefTransferler    StokTransfer[] @relation("HedefSube")
 
   // Audit
   createdAt DateTime @default(now())
@@ -235,14 +237,14 @@ model UrunFiyat {
   kgFiyati     Float        // CSV'deki KG FİYATI
   birim        SatisBirimi  @default(KG)
   fiyatTipi    FiyatTipi    @default(NORMAL)
-  
+
   // TARİHSEL TAKİP - ÇOK ÖNEMLİ!
   baslangicTarihi DateTime   @db.Date  // Bu fiyatın geçerli olduğu başlangıç tarihi
   bitisTarihi     DateTime?  @db.Date  // Bu fiyatın geçersiz olduğu tarih (NULL = hala geçerli)
   
   // Durum Kontrolü
   aktif        Boolean      @default(true)
-  
+
   // Kim Ne Zaman Ekledi/Değiştirdi
   createdAt    DateTime     @default(now())
   createdBy    String?      // Personel ID'si
@@ -253,7 +255,7 @@ model UrunFiyat {
   degisiklikSebebi String?   // "GENEL ZAM", "MALZEME ZAMMI", "KAMPANYA" vb.
   eskiFiyat        Float?    // Önceki fiyat (karşılaştırma için)
   yuzdelik         Float?    // Değişim yüzdesi
-  
+
   @@unique([urunId, baslangicTarihi, fiyatTipi])
   @@index([aktif])
   @@index([baslangicTarihi])
@@ -369,7 +371,7 @@ model Cari {
   // Contact Info
   telefon   String?
   email     String?
-  adres     String?
+  adres     String? // Ana adres (backward compatibility için)
   il        String?
   ilce      String?
   postaKodu String?
@@ -397,6 +399,7 @@ model Cari {
   siparisler Siparis[]
   hareketler CariHareket[]
   odemeler   CariOdeme[]
+  adresler   CariAdres[] // YENİ: Çoklu adres desteği
   
   // CSV'den gelen müşteri verileri ile ilişki
   cariMusteriRelation CariMusteriRelation?
@@ -415,6 +418,40 @@ model Cari {
   @@index([musteriKodu])
   @@index([tipi])
   @@index([aktif])
+}
+
+// YENİ MODEL: Cari Adres Yönetimi
+model CariAdres {
+  id     Int  @id @default(autoincrement())
+  cariId Int
+  cari   Cari @relation(fields: [cariId], references: [id], onDelete: Cascade)
+
+  // Adres Bilgileri
+  tip          AdresTipi @default(DIGER)
+  adres        String
+  il           String?
+  ilce         String?
+  mahalle      String?
+  postaKodu    String?
+  tarif        String? // Ek açıklama/tarif
+
+  // Durum
+  varsayilan   Boolean @default(false) // Ana adres mi?
+  aktif        Boolean @default(true)
+
+  // Audit
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([cariId])
+  @@index([tip])
+  @@index([varsayilan])
+}
+
+enum AdresTipi {
+  EV
+  IS
+  DIGER
 }
 
 enum CariTipi {
@@ -539,9 +576,13 @@ model Siparis {
   kargoNotu    String?
   kargoTarihi  DateTime?
 
-  // Transfer (Şubeler arası)
-  hedefSubeId Int?
-  hedefSube   Sube? @relation("HedefSube", fields: [hedefSubeId], references: [id])
+  // Transfer (Şubeler arası) - YENİ SISTEM
+  hedefSubeId   Int?
+  hedefSube     Sube? @relation("HedefSube", fields: [hedefSubeId], references: [id])
+  subeNeredenId Int?  // Nereden şube (şubeden şubeye transfer için)
+  subeNereyeId  Int?  // Nereye şube (şubeden şubeye transfer için)
+  subeNereden   Sube? @relation("SubeNereden", fields: [subeNeredenId], references: [id])
+  subeNereye    Sube? @relation("SubeNereye", fields: [subeNereyeId], references: [id])
 
   // Notes
   siparisNotu  String?

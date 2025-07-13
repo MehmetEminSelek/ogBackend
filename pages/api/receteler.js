@@ -11,11 +11,21 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
         try {
-            console.log('API /api/receteler GET isteği alındı');
+            const { urunId } = req.query;
+            console.log('API /api/receteler GET isteği alındı. UrunId:', urunId);
+
+            // Filtreleme koşulları
+            const where = { aktif: true };
+
+            // Eğer urunId parametresi varsa, sadece o ürünün reçetelerini getir
+            if (urunId) {
+                where.urunId = parseInt(urunId);
+                console.log(`🔍 Sadece ${urunId} ürün ID'si için reçeteler getiriliyor`);
+            }
 
             // Yeni schema ile recipes al
             const recipes = await prisma.recipe.findMany({
-                where: { aktif: true },
+                where,
                 include: {
                     urun: { select: { id: true, ad: true, kod: true } },
                     icerikelek: {

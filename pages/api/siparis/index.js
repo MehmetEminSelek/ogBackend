@@ -48,15 +48,10 @@ async function calculateOrderPrice(urunId, miktar, birim, tarih) {
     return result;
 }
 
-// Yardımcı fonksiyon: Tepsi/Tava fiyatını bulur
-async function getTepsiTavaPrice(tx, tepsiTavaId) { // tx parametresi eklendi
-    if (!tepsiTavaId) return 0;
-    // schema.prisma'da TepsiTava modelinde 'fiyat' alanı olduğundan emin ol!
-    const tepsi = await tx.tepsiTava.findUnique({ // tx kullanıldı
-        where: { id: tepsiTavaId },
-        select: { fiyat: true }
-    });
-    return tepsi?.fiyat || 0;
+// Yardımcı fonksiyon: Tepsi/Tava fiyatını bulur - DEVRE DIŞI
+async function getTepsiTavaPrice(tx, tepsiTavaId) {
+    // Şimdilik tepsi/tava fiyatlandırması devre dışı
+    return 0;
 }
 
 // Yardımcı fonksiyon: Özel tepsi içeriğini sipariş kalemleri olarak hazırla
@@ -108,9 +103,10 @@ async function handlePost(req, res) {
         aciklama,
         siparisler,
         ozelTepsiId,
-        gorunecekAd,
         kargoUcreti: kargoUcretiStr,
-        digerHizmetTutari: digerHizmetTutariStr
+        digerHizmetTutari: digerHizmetTutariStr,
+        subeNeredenId,  // Şubeden şubeye transfer için
+        subeNereyeId    // Şubeden şubeye transfer için
     } = req.body;
 
     if (!tarih || !teslimatTuruId || !gonderenAdi || !gonderenTel ||
@@ -144,6 +140,9 @@ async function handlePost(req, res) {
             case 'TT007': // Şubeye Gönderilecek
                 kargoDurumuToSet = 'SUBEYE_GONDERILECEK';
                 break;
+            case 'TT008': // Şubeden Şubeye (nereden-nereye)
+                kargoDurumuToSet = 'SUBEDEN_SUBEYE';
+                break;
             default:
                 kargoDurumuToSet = 'ADRESE_TESLIMAT'; // Bilinmeyen durumlar için varsayılan
         }
@@ -170,23 +169,10 @@ async function handlePost(req, res) {
                 .filter(id => id != null)
                 .map(id => parseInt(id));
 
-            if (tepsiTavaIds.length > 0) {
-                // ID'lerin geçerli olup olmadığını kontrol et (opsiyonel ama iyi pratik)
-                const validTepsiler = await tx.tepsiTava.findMany({
-                    where: { id: { in: tepsiTavaIds } },
-                    select: { id: true, fiyat: true }
-                });
-                const validTepsiMap = validTepsiler.reduce((map, tepsi) => {
-                    map[tepsi.id] = tepsi.fiyat || 0;
-                    return map;
-                }, {});
-
-                siparisKalemleri.forEach(paket => {
-                    if (paket.tepsiTavaId && validTepsiMap[paket.tepsiTavaId] !== undefined) {
-                        hesaplananToplamTepsiMaliyeti += validTepsiMap[paket.tepsiTavaId];
-                    }
-                });
-            }
+            // Tepsi/Tava fiyat hesaplamalarını şimdilik devre dışı bırak
+            // Yeni fiyatlandırma sistemi henüz tamamen entegre edilmedi
+            hesaplananToplamTepsiMaliyeti = 0;
+            console.log("Tepsi/Tava fiyatlandırması geçici olarak devre dışı - Toplam: 0");
             console.log("Hesaplanan Toplam Tepsi Maliyeti:", hesaplananToplamTepsiMaliyeti);
 
             // 2. Ana Sipariş kaydını oluştur
@@ -202,11 +188,10 @@ async function handlePost(req, res) {
                     aliciTel: aliciTel || null,
                     teslimatAdresi: adres || null,  // schema'da adres değil teslimatAdresi var
                     siparisNotu: aciklama || null,  // schema'da aciklama değil siparisNotu var
-                    // gorunecekAd alanı schema'da yok - kaldırıldı
-                    // toplamTepsiMaliyeti alanı schema'da yok - kaldırıldı  
                     kargoUcreti: kargoUcretiStr ? parseFloat(kargoUcretiStr) : 0,
                     digerHizmetTutari: digerHizmetTutariStr ? parseFloat(digerHizmetTutariStr) : 0,
                     kargoDurumu: kargoDurumuToSet, // Düzeltilmiş enum değeri
+                    // subeNeredenId ve subeNereyeId geçici olarak devre dışı
                     // onaylandiMi varsayılan olarak false olacak
                 },
             });
@@ -218,7 +203,7 @@ async function handlePost(req, res) {
 
             for (const kalem of siparisKalemleri) {
                 if (!kalem.urunId || !kalem.miktar || !kalem.birim) {
-                    console.warn(`Sipariş ${olusturulanSiparis.id}, Kalem (Ambalaj ID: ${kalem.ambalajId}) içinde eksik ürün bilgisi atlandı:`, kalem);
+                    console.warn(`Sipariş ${olusturulanSiparis.id}, Kalem (Tepsi/Kutu ID: ${kalem.tepsiTavaId || kalem.kutuId}) içinde eksik ürün bilgisi atlandı:`, kalem);
                     continue; // Eksik bilgili ürünü atla
                 }
 
@@ -304,7 +289,10 @@ async function handlePost(req, res) {
                         }
                     },
                     teslimatTuru: true,
-                    sube: true
+                    sube: true,
+                    subeNereden: true,  // Nereden şube bilgisi
+                    subeNereye: true,   // Nereye şube bilgisi
+                    hedefSube: true     // Hedef şube bilgisi
                 } // Kalemleri de yanıta ekle
             });
         }); // Transaction sonu
@@ -325,13 +313,34 @@ async function handlePost(req, res) {
         return res.status(201).json(yeniSiparis);
 
     } catch (error) {
-        console.error('❌ POST /api/siparis HATA:', error);
+        console.error('❌ POST /api/siparis HATA:');
+        console.error('Error Message:', error.message);
+        console.error('Error Stack:', error.stack);
+        console.error('Error Type:', error.constructor.name);
+        if (error.code) console.error('Error Code:', error.code);
+
         let errorMessage = 'Sipariş oluşturulurken bir sunucu hatası oluştu.';
-        // ... (Diğer hata kontrolleri aynı) ...
-        if (error.message.includes("geçerli ürün bulunamadı")) { errorMessage = error.message; }
-        else if (error instanceof Prisma.PrismaClientValidationError) { errorMessage = 'Veri doğrulama hatası.'; }
-        else if (error instanceof Prisma.PrismaClientKnownRequestError) { errorMessage = `Veritabanı hatası: ${error.code}.`; }
-        return res.status(500).json({ message: errorMessage });
+
+        if (error.message.includes("geçerli ürün bulunamadı")) {
+            errorMessage = error.message;
+        }
+        else if (error instanceof Prisma.PrismaClientValidationError) {
+            console.error('Prisma Validation Error Details:', error.message);
+            errorMessage = `Veri doğrulama hatası: ${error.message}`;
+        }
+        else if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            console.error('Prisma Known Error Details:', error.message, error.meta);
+            errorMessage = `Veritabanı hatası: ${error.code} - ${error.message}`;
+        }
+        else {
+            console.error('Unexpected Error Details:', error);
+            errorMessage = `Beklenmeyen hata: ${error.message}`;
+        }
+
+        return res.status(500).json({
+            message: errorMessage,
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 }
 
@@ -352,10 +361,18 @@ async function handleGet(req, res) {
             where,
             orderBy: { tarih: 'desc' },
             include: {
-                teslimatTuru: { select: { ad: true, kodu: true } },
+                teslimatTuru: true,
                 sube: true,
-                gonderenAliciTipi: true,
-                kalemler: { include: { urun: true, tepsiTava: true, kutu: true } },
+                subeNereden: true,  // Nereden şube bilgisi
+                subeNereye: true,   // Nereye şube bilgisi
+                hedefSube: true,    // Hedef şube bilgisi
+                kalemler: { 
+                    include: { 
+                        urun: { select: { id: true, ad: true, kod: true } }, 
+                        tepsiTava: { select: { id: true, ad: true, kod: true } },
+                        kutu: { select: { id: true, ad: true, kod: true } }
+                    } 
+                },
                 odemeler: true,
             },
         });

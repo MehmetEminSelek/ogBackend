@@ -41,9 +41,8 @@ export default async function handler(req, res) {
                                     }
                                 }
                             },
-                            ambalaj: { select: { ad: true } },
                             kutu: { select: { ad: true } },
-                            tepsiTava: { select: { ad: true, fiyat: true } }
+                            tepsiTava: { select: { ad: true } } // fiyat alanı yok
                         }
                     }
                 }

@@ -15,7 +15,8 @@ export default async function handler(req, res) {
                 orderBy: { createdAt: 'desc' },
                 take: 200,
                 include: {
-                    stok: { include: { hammadde: true, yariMamul: true, operasyonBirimi: true } },
+                    urun: { select: { ad: true, kod: true, kategori: true } },
+                    material: { select: { ad: true, kod: true, tipi: true } },
                     user: { select: { ad: true, email: true, rol: true } }
                 }
             });

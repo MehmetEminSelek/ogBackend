@@ -1,0 +1,15 @@
+Şube Listesi,Şube Kodu,MÜDÜR,PERSONEL
+Hava-1,SB001,,
+Hava-3,SB002,,
+Hitit,SB003,,
+İbrahimli,SB004,,
+Karagöz,SB005,,
+Otogar,SB006,,
+Salon,SB007,,
+,,,
+,,,
+Operasyon Birimleri,Kodu,MÜDÜRÜ,PERSONEL
+Ana Depo,OP001,,
+Cep Depo,OP002,,
+Sevkiyat,OP003,,
+Üretim,OP004,,

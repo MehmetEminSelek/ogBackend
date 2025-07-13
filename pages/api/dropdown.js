@@ -47,7 +47,22 @@ export default async function handler(req, res) {
             musteriKodu: true,
             adres: true,
             il: true,
-            ilce: true
+            ilce: true,
+            adresler: {
+              where: { aktif: true },
+              orderBy: [{ varsayilan: 'desc' }, { createdAt: 'asc' }],
+              select: {
+                id: true,
+                tip: true,
+                adres: true,
+                il: true,
+                ilce: true,
+                mahalle: true,
+                postaKodu: true,
+                tarif: true,
+                varsayilan: true
+              }
+            }
           }
         }),
         prisma.urunKategori.findMany({ where: { aktif: true }, orderBy: { ad: 'asc' } })
@@ -148,7 +163,8 @@ export default async function handler(req, res) {
           musteriKodu: item.musteriKodu || '',
           adres: item.adres || '',
           il: item.il || '',
-          ilce: item.ilce || ''
+          ilce: item.ilce || '',
+          adresler: item.adresler || []
         }))
       };
 

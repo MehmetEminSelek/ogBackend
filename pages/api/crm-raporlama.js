@@ -32,7 +32,7 @@ export default async function handler(req, res) {
                 kalemler: {
                     include: {
                         urun: { select: { ad: true, kategoriId: true } },
-                        ambalaj: { select: { ad: true } }
+                        kutu: { select: { ad: true } }
                     }
                 },
                 odemeler: true

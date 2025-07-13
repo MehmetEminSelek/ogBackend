@@ -56,6 +56,16 @@ export default async function handler(req, res) {
           teslimatTuru: { select: { ad: true } },
           sube: { select: { ad: true } },
           cari: { select: { id: true, ad: true, musteriKodu: true } },
+          odemeler: {
+            orderBy: { odemeTarihi: 'desc' },
+            select: {
+              id: true,
+              tutar: true,
+              odemeTarihi: true,
+              odemeYontemi: true,
+              aciklama: true
+            }
+          },
           kalemler: {
             orderBy: { id: 'asc' },
             select: {
@@ -64,10 +74,9 @@ export default async function handler(req, res) {
               birim: true,
               birimFiyat: true,
               urun: { select: { id: true, ad: true } },
-              ambalaj: { select: { id: true, ad: true } },
+              urunId: true,
               kutu: { select: { id: true, ad: true } },
-              tepsiTava: { select: { id: true, ad: true, fiyat: true } },
-              ambalajId: true,
+              tepsiTava: { select: { id: true, ad: true } }, // fiyat alanı yok
               kutuId: true,
               tepsiTavaId: true
             }

@@ -26,7 +26,40 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Geçerli bir ödeme tutarı girilmelidir.' });
         }
 
+        // Ödeme yöntemi değer dönüştürme (Frontend -> Prisma Enum)
+        const odemeYontemiMap = {
+            'Nakit': 'NAKIT',
+            'NAKIT': 'NAKIT',
+            'Kredi Kartı': 'KREDI_KARTI',
+            'KREDI_KARTI': 'KREDI_KARTI',
+            'Cari': 'CARI',
+            'CARI': 'CARI',
+            'Çek': 'CEK',
+            'CEK': 'CEK',
+            'Banka Havalesi': 'BANKA_HAVALESI',
+            'BANKA_HAVALESI': 'BANKA_HAVALESI',
+            'İkram': 'IKRAM',
+            'IKRAM': 'IKRAM'
+        };
+
+        const validOdemeYontemi = odemeYontemiMap[odemeYontemi] || 'NAKIT';
+        console.log(`Ödeme yöntemi dönüştürme: "${odemeYontemi}" -> "${validOdemeYontemi}"`);
+
         try {
+            // Önce siparişi çek ve müşteri ID'sini al
+            const siparis = await prisma.siparis.findUnique({
+                where: { id: siparisId },
+                select: { cariId: true, tarih: true }
+            });
+
+            if (!siparis) {
+                return res.status(404).json({ message: 'Sipariş bulunamadı.' });
+            }
+
+            if (!siparis.cariId) {
+                return res.status(400).json({ message: 'Bu siparişin müşteri bilgisi eksik.' });
+            }
+
             // Ödeme tarihini işle (gelmezse şimdiki zaman)
             let odemeTarihiDate = new Date();
             if (odemeTarihi) {
@@ -34,21 +67,16 @@ export default async function handler(req, res) {
                 if (isNaN(odemeTarihiDate.getTime())) {
                     throw new Error('Geçersiz ödeme tarihi formatı.');
                 }
-            } else {
-                //Eğer frontend tarih göndermiyorsa ve şimdi olmasını istemiyorsan,
-                //siparişin kendi tarihini kullanabilirsin (önce siparişi çekerek)
-                //const siparis = await prisma.siparis.findUnique({ where: { id: siparisId }, select: { tarih: true } });
-                //if (siparis) odemeTarihiDate = siparis.tarih;
             }
 
-
             // Yeni ödemeyi veritabanına ekle
-            const yeniOdeme = await prisma.odeme.create({
+            const yeniOdeme = await prisma.cariOdeme.create({
                 data: {
+                    cariId: siparis.cariId,  // Müşteri ID'si zorunlu!
                     siparisId: siparisId,
                     tutar: tutar,
                     odemeTarihi: odemeTarihiDate,
-                    odemeYontemi: odemeYontemi || null,
+                    odemeYontemi: validOdemeYontemi,  // Dönüştürülmüş değer
                     aciklama: aciklama || null,
                 }
             });

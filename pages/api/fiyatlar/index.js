@@ -32,7 +32,7 @@ async function handler(req, res) {
 // Fiyatları listele
 async function getFiyatlar(req, res) {
     try {
-        const fiyatlar = await prisma.fiyat.findMany({
+        const fiyatlar = await prisma.urunFiyat.findMany({
             include: {
                 urun: {
                     select: {
@@ -47,7 +47,7 @@ async function getFiyatlar(req, res) {
                     }
                 }
             },
-            orderBy: { gecerliTarih: 'desc' }
+            orderBy: { baslangicTarihi: 'desc' }
         });
 
         return res.status(200).json({
@@ -67,28 +67,28 @@ async function getFiyatlar(req, res) {
 async function createFiyat(req, res) {
     const {
         urunId,
-        fiyat,
+        kgFiyati,
         birim = 'KG',
         fiyatTipi = 'NORMAL',
-        gecerliTarih,
+        baslangicTarihi,
         bitisTarihi,
         aktif = true
     } = req.body;
 
-    if (!urunId || !fiyat || !gecerliTarih) {
+    if (!urunId || !kgFiyati || !baslangicTarihi) {
         return res.status(400).json({
-            error: 'Ürün, fiyat ve geçerlilik tarihi zorunludur'
+            error: 'Ürün, fiyat ve başlangıç tarihi zorunludur'
         });
     }
 
     try {
-        const yeniFiyat = await prisma.fiyat.create({
+        const yeniFiyat = await prisma.urunFiyat.create({
             data: {
                 urunId: parseInt(urunId),
-                fiyat: parseFloat(fiyat),
+                kgFiyati: parseFloat(kgFiyati),
                 birim,
                 fiyatTipi,
-                gecerliTarih: new Date(gecerliTarih),
+                baslangicTarihi: new Date(baslangicTarihi),
                 bitisTarihi: bitisTarihi ? new Date(bitisTarihi) : null,
                 aktif
             },
@@ -124,7 +124,7 @@ async function updateFiyat(req, res) {
     }
 
     try {
-        const guncellenenFiyat = await prisma.fiyat.update({
+        const guncellenenFiyat = await prisma.urunFiyat.update({
             where: { id: parseInt(id) },
             data: req.body,
             include: {
@@ -159,7 +159,7 @@ async function deleteFiyat(req, res) {
     }
 
     try {
-        await prisma.fiyat.delete({
+        await prisma.urunFiyat.delete({
             where: { id: parseInt(id) }
         });
 

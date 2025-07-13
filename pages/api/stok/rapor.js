@@ -8,53 +8,74 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
         try {
-            const { startDate, endDate } = req.query;
+            const { start, end } = req.query;
             const where = {};
-            if (startDate || endDate) {
+            if (start || end) {
                 where.createdAt = {};
-                if (startDate) where.createdAt.gte = new Date(startDate);
-                if (endDate) where.createdAt.lte = new Date(endDate);
+                if (start) where.createdAt.gte = new Date(start);
+                if (end) where.createdAt.lte = new Date(end);
             }
+
             // Toplamlar
             const [giris, cikis, transfer] = await Promise.all([
-                prisma.stokHareket.aggregate({ _sum: { miktarGram: true }, where: { ...where, tip: 'giris' } }),
-                prisma.stokHareket.aggregate({ _sum: { miktarGram: true }, where: { ...where, tip: 'cikis' } }),
-                prisma.stokHareket.aggregate({ _sum: { miktarGram: true }, where: { ...where, tip: 'transfer' } })
+                prisma.stokHareket.aggregate({ 
+                    _sum: { miktar: true }, 
+                    where: { ...where, tip: 'GIRIS' } 
+                }),
+                prisma.stokHareket.aggregate({ 
+                    _sum: { miktar: true }, 
+                    where: { ...where, tip: 'CIKIS' } 
+                }),
+                prisma.stokHareket.aggregate({ 
+                    _sum: { miktar: true }, 
+                    where: { ...where, tip: 'TRANSFER' } 
+                })
             ]);
-            // En çok hareket görenler
-            const enCokGiren = await prisma.stokHareket.groupBy({
-                by: ['stokId'],
-                where: { ...where, tip: 'giris' },
-                _sum: { miktarGram: true },
-                orderBy: { _sum: { miktarGram: 'desc' } },
+
+            // En çok hareket gören ürünler
+            const enCokMovingUrunler = await prisma.stokHareket.groupBy({
+                by: ['urunId'],
+                where: { ...where, urunId: { not: null } },
+                _sum: { miktar: true },
+                orderBy: { _sum: { miktar: 'desc' } },
                 take: 5
             });
-            const enCokCikan = await prisma.stokHareket.groupBy({
-                by: ['stokId'],
-                where: { ...where, tip: 'cikis' },
-                _sum: { miktarGram: true },
-                orderBy: { _sum: { miktarGram: 'desc' } },
+
+            // En çok hareket gören materyaller
+            const enCokMovingMateryaller = await prisma.stokHareket.groupBy({
+                by: ['materialId'],
+                where: { ...where, materialId: { not: null } },
+                _sum: { miktar: true },
+                orderBy: { _sum: { miktar: 'desc' } },
                 take: 5
             });
-            // Kritik stoklar
-            const kritikStoklar = await prisma.stok.findMany({
-                where: { miktarGram: { lt: prisma.stok.fields.minimumMiktarGram } },
-                include: { hammadde: true, yariMamul: true, operasyonBirimi: true }
+
+            // Kritik seviyedeki materyaller
+            const kritikMateryaller = await prisma.material.findMany({
+                where: { 
+                    mevcutStok: { lte: prisma.material.fields.kritikSeviye }
+                },
+                select: {
+                    id: true,
+                    ad: true,
+                    kod: true,
+                    mevcutStok: true,
+                    kritikSeviye: true,
+                    birimFiyat: true,
+                    tipi: true
+                }
             });
-            // Stok isimlerini ekle
-            const stokIds = [...new Set([...enCokGiren, ...enCokCikan].map(x => x.stokId))];
-            const stoklar = await prisma.stok.findMany({
-                where: { id: { in: stokIds } },
-                include: { hammadde: true, yariMamul: true, operasyonBirimi: true }
-            });
-            const stokMap = Object.fromEntries(stoklar.map(s => [s.id, s]));
+
             return res.status(200).json({
-                toplamGiris: giris._sum.miktarGram || 0,
-                toplamCikis: cikis._sum.miktarGram || 0,
-                toplamTransfer: transfer._sum.miktarGram || 0,
-                enCokGiren: enCokGiren.map(x => ({ ...x, stok: stokMap[x.stokId] })),
-                enCokCikan: enCokCikan.map(x => ({ ...x, stok: stokMap[x.stokId] })),
-                kritikStoklar
+                toplamGiris: giris._sum.miktar || 0,
+                toplamCikis: cikis._sum.miktar || 0,
+                toplamTransfer: transfer._sum.miktar || 0,
+                enCokHareketGoren: {
+                    urunler: enCokMovingUrunler,
+                    materyaller: enCokMovingMateryaller
+                },
+                kritikMateryaller,
+                tarihAraligi: { start, end }
             });
         } catch (error) {
             return res.status(500).json({ message: 'Rapor alınamadı.', error: error.message });

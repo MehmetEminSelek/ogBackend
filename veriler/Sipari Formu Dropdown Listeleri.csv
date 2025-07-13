@@ -1,0 +1,39 @@
+Sipariş Teslimat Türü Listesi,Teslimat Türü Kodu,,Gönderen/Alıcı Listesi,Gönderen/Alıcı Kodu,,Ambalaj Türü Listesi,Ambalaj Kodu,,Tepsi/Tava Listesi,Tepsi/Tava Kodu,,Kutu Listesi,Kutu Listesi Kodu,,Ürün Listesi,Ürün Kodu
+Evine Gönderilecek,TT001,,Gönderen ve Alıcı,GA001,,Kutu,AM001,,1 Li Tava,TP001,,1 Kg Kare Kutusu,KT001,,Antep Peynirli Su Böreği,UR001
+Farklı Şubeden Teslim,TT002,,Tek Gönderen,GA002,,Tepsi/Tava,AM002,,1 Li Tepsi,TP002,,1 Kg Kutu,KT002,,Bayram Tepsisi,UR002
+Mtn,TT003,,,,,,,,"1,5 Lu Tava",TP003,,1 Kg POŞET TF,KT003,,Cevizli Bülbül Yuvası,UR003
+Otobüs ,TT004,,,,,,,,"1,5 Lu Tepsi",TP004,,1 Kg TAHTA TF Kutusu,KT004,,Cevizli Eski Usûl Dolama,UR004
+Şubeden Teslim,TT005,,,,,,,,1000 Lik Tava,TP005,,1 Kg TF Kutusu,KT005,,Cevizli Özel Kare,UR005
+Yurtiçi Kargo,TT006,,,,,,,,2 Li Tava,TP006,,"1,5 Kg Kutu",KT006,,Cevizli Şöbiyet,UR006
+,,,,,,,,,2 Li Tepsi,TP007,,250 gr Kutu,KT007,,Cevizli Yaş Baklava,UR007
+,,,,,,,,,"2,5 Lu Tepsi",TP008,,500 gr Kare Kutusu,KT008,,Doğum Günü Tepsisi,UR008
+,,,,,,,,,3 Lü Tepsi,TP009,,500 gr Kutu,KT009,,Düz Kadayıf,UR009
+,,,,,,,,,4 Lü Tepsi,TP010,,500 gr POŞET TF,KT010,,Fındıklı Çikolatalı Midye,UR010
+,,,,,,,,,5 Li Tepsi,TP011,,500 gr TAHTA TF Kutusu,KT011,,Fıstık Ezmesi,UR011
+,,,,,,,,,800 Lük Tava,TP012,,500 gr TF Kutusu,KT012,,Burma Kadayıf,UR012
+,,,,,,,,,,,,750 gr Kutu,KT013,,Bülbül Yuvası,UR013
+,,,,,,,,,,,,Tekli HD Kutusu,KT014,,Çikolatalı Midye,UR014
+,,,,,,,,,,,,Tekli Kare Kutusu,KT015,,Dolama,UR015
+,,,,,,,,,,,,,,,Eski Usûl Dolama,UR016
+,,,,,,,,,,,,,,,Havuç Dilimi,UR017
+,,,,,,,,,,,,,,,Fıstıklı Kurabiye,UR018
+,,,,,,,,,,,,,,,Kuru Baklava,UR019
+,,,,,,,,,,,,,,,Midye ,UR020
+,,,,,,,,,,,,,,,Özel Kare,UR021
+,,,,,,,,,,,,,,,Özel Şöbiyet,UR022
+,,,,,,,,,,,,,,,Şöbiyet,UR023
+,,,,,,,,,,,,,,,Yaprak Şöbiyet,UR024
+,,,,,,,,,,,,,,,Yaş Baklava,UR025
+,,,,,,,,,,,,,,,İç Fıstık,UR026
+,,,,,,,,,,,,,,,Kare Fıstık Ezmesi,UR027
+,,,,,,,,,,,,,,,Karışık,UR028
+,,,,,,,,,,,,,,,Kaymaklı Baklava,UR029
+,,,,,,,,,,,,,,,Kaymaklı Havuç Dilimi,UR030
+,,,,,,,,,,,,,,,Özel Karışık,UR031
+,,,,,,,,,,,,,,,Sade Kurabiye,UR032
+,,,,,,,,,,,,,,,Sadeyağ,UR033
+,,,,,,,,,,,,,,,Sargılı Fıstık Ezmesi,UR034
+,,,,,,,,,,,,,,,Soğuk Baklava,UR035
+,,,,,,,,,,,,,,,Tuzlu Antep Fıstığı,UR036
+,,,,,,,,,,,,,,,Yazılı Karışık Tepsi,UR037
+,,,,,,,,,,,,,,,Yılbaşı Tepsisi,UR038

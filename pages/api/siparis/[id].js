@@ -15,85 +15,181 @@ async function getTepsiTavaPrice(tx, tepsiTavaId) {
     return tepsi?.fiyat || 0;
 }
 
-// Helper: Stoktan düşüm fonksiyonu
+// Helper: Reçeteyi çöz ve malzemeleri bul
+async function resolveRecipeMaterials(tx, urunId, miktar) {
+    const recipe = await tx.recipe.findFirst({
+        where: { urunId: urunId, aktif: true },
+        include: {
+            icerikelek: {
+                include: {
+                    material: true
+                }
+            }
+        }
+    });
+
+    if (!recipe) {
+        return [];
+    }
+
+    // Sipariş miktarını kilogram cinsine çevir
+    const siparisKg = miktar; // Zaten kg cinsinden geliyor
+
+    return recipe.icerikelek.map(ing => ({
+        materialId: ing.material.id,
+        materialKodu: ing.material.kod,
+        materialAdi: ing.material.ad,
+        gerekliMiktar: (ing.gerMiktarTB || ing.gerMiktar || ing.miktar) * siparisKg,
+        birim: ing.birim
+    }));
+}
+
+// Helper: Stoktan düşüm fonksiyonu - GELİŞTİRİLMİŞ VERSİYON
 async function dusStokFromRecete(tx, siparisId) {
+    console.log(`🔄 Sipariş ${siparisId} için otomatik stok düşümü başlatılıyor...`);
+
     // 1. Sipariş ve kalemlerini çek
     const siparis = await tx.siparis.findUnique({
         where: { id: siparisId },
-        include: { kalemler: { include: { urun: true } } }
+        include: {
+            kalemler: {
+                include: {
+                    urun: true
+                }
+            }
+        }
     });
-    if (!siparis) throw new Error('Sipariş bulunamadı');
 
-    // OperasyonBirimi kontrolü kaldırıldı - Material modelini direkt kullanıyoruz
+    if (!siparis) {
+        throw new Error('Sipariş bulunamadı');
+    }
 
     // 2. Daha önce stok düşümü yapılmış mı kontrolü
     if (siparis.siparisNotu && siparis.siparisNotu.includes('[STOK DÜŞÜLDÜ]')) {
         throw new Error('Bu sipariş için daha önce stok düşümü yapılmış');
     }
 
+    let stokIhtiyaclari = {};
     const stokHatalari = [];
+    const uyarilar = []; // Reçetesi olmayan ürünler için uyarı listesi
 
-    // 3. Her kalem için reçeteyi bul ve stoktan düş
+    // 3. Her kalem için reçete malzemelerini hesapla
     for (const kalem of siparis.kalemler) {
-        // Ürünle ilişkili reçeteyi bul
-        const recipe = await tx.recipe.findFirst({
-            where: { urunId: kalem.urun.id },
-            include: {
-                icerikelek: {
-                    include: {
-                        material: true
-                    }
-                }
-            }
-        });
+        console.log(`📋 ${kalem.urun.ad} için reçete malzemeleri hesaplanıyor (${kalem.miktar} ${kalem.birim})`);
 
-        if (!recipe) {
-            stokHatalari.push(`Ürün ${kalem.urun.ad} için reçete bulunamadı`);
+        const materials = await resolveRecipeMaterials(tx, kalem.urun.id, kalem.miktar);
+
+        if (materials.length === 0) {
+            // ⚠️ UYARI: Reçete yok ama işleme devam et
+            uyarilar.push(`⚠️ '${kalem.urun.ad}' için aktif reçete bulunamadı - stok düşümü yapılmadı`);
+            console.warn(`⚠️ ${kalem.urun.ad} için reçete bulunamadı, stok düşümü atlanıyor`);
             continue;
         }
 
-        // Sipariş miktarını kilogram cinsine çevir
-        const siparisKg = kalem.birim.toLowerCase() === 'gram' ?
-            kalem.miktar / 1000 : // gram -> kg
-            kalem.miktar; // zaten kg
-
-        for (const ing of recipe.icerikelek) {  // Schema'da ingredients değil icerikelek
-            // Material modelini kullan (Schema'da hammadde/yariMamul yok)
-            const material = await tx.material.findUnique({ where: { kod: ing.material.kod } });
-
-            // Reçetedeki miktar gram, sipariş kg cinsinden. Toplam düşülecek miktarı hesapla
-            const dusulecekGram = ing.miktar * siparisKg; // Schema'da miktarGram değil miktar
-
-            if (material) {
-                console.log(`${material.ad} için ${dusulecekGram}g stok düşülecek`);
-                // Material modelinde stok direkt mevcutStok alanında
-                if (material.mevcutStok < dusulecekGram) {
-                    stokHatalari.push(
-                        `${material.ad} için yetersiz stok. Gereken: ${dusulecekGram}g, Mevcut: ${material.mevcutStok}g`
-                    );
-                } else {
-                    // Material tablosundaki mevcutStok alanını güncelle
-                    await tx.material.update({
-                        where: { id: material.id },
-                        data: { mevcutStok: { decrement: dusulecekGram } }
-                    });
-                }
-            } else {
-                stokHatalari.push(`${ing.material.kod} kodlu malzeme bulunamadı`);
+        for (const material of materials) {
+            if (!stokIhtiyaclari[material.materialId]) {
+                stokIhtiyaclari[material.materialId] = {
+                    materialId: material.materialId,
+                    materialKodu: material.materialKodu,
+                    materialAdi: material.materialAdi,
+                    gerekliMiktar: 0,
+                    birim: material.birim
+                };
             }
+            stokIhtiyaclari[material.materialId].gerekliMiktar += material.gerekliMiktar;
         }
     }
 
-    // Eğer herhangi bir hata varsa işlemi iptal et
+    // 4. Stok kontrolü ve düşümü
+    const stokHareketleri = [];
+
+    for (const materialId in stokIhtiyaclari) {
+        const ihtiyac = stokIhtiyaclari[materialId];
+
+        // Material'ı bul
+        const material = await tx.material.findUnique({
+            where: { id: parseInt(materialId) }
+        });
+
+        if (!material) {
+            stokHatalari.push(`❌ ${ihtiyac.materialKodu} kodlu malzeme bulunamadı`);
+            continue;
+        }
+
+        // Stok yeterliliği kontrolü - YETERSİZ STOKTA DA DEVAM ET AMA UYARI VER
+        if (material.mevcutStok < ihtiyac.gerekliMiktar) {
+            uyarilar.push(
+                `⚠️ ${material.ad} için yetersiz stok! Gereken: ${ihtiyac.gerekliMiktar}${ihtiyac.birim}, Mevcut: ${material.mevcutStok}${material.birim} (Negatif stok oluşacak)`
+            );
+            console.warn(`⚠️ ${material.ad} için yetersiz stok, negatif stok oluşacak`);
+            // İşleme devam et, stoku düş (negatif olabilir)
+        }
+
+        // Stoktan düş
+        const oncekiStok = material.mevcutStok;
+        const sonrakiStok = oncekiStok - ihtiyac.gerekliMiktar;
+
+        await tx.material.update({
+            where: { id: parseInt(materialId) },
+            data: { mevcutStok: sonrakiStok }
+        });
+
+        // Stok hareketi kaydet
+        await tx.stokHareket.create({
+            data: {
+                materialId: parseInt(materialId),
+                tip: 'CIKIS',
+                miktar: ihtiyac.gerekliMiktar,
+                birim: ihtiyac.birim || material.birim,
+                aciklama: `Sipariş #${siparisId} için otomatik stok düşümü (reçete bazında)`,
+                oncekiStok: oncekiStok,
+                sonrakiStok: sonrakiStok,
+                toplamMaliyet: (material.birimFiyat || 0) * ihtiyac.gerekliMiktar,
+                birimMaliyet: material.birimFiyat || 0
+            }
+        });
+
+        stokHareketleri.push({
+            materialKodu: material.kod,
+            materialAdi: material.ad,
+            dusulenMiktar: ihtiyac.gerekliMiktar,
+            birim: ihtiyac.birim || material.birim,
+            oncekiStok: oncekiStok,
+            sonrakiStok: sonrakiStok
+        });
+
+        console.log(`✅ Stok düşüldü: ${material.ad} | ${oncekiStok} -> ${sonrakiStok} ${material.birim}`);
+    }
+
+    // 5. Sadece kritik stok hataları varsa işlemi iptal et (yetersiz stok vs.)
     if (stokHatalari.length > 0) {
+        console.error('❌ Stok düşme işlemi durduruldu:', stokHatalari);
         throw new Error('Stok düşme işlemi başarısız:\n' + stokHatalari.join('\n'));
     }
 
-    // 4. Sipariş açıklamasına işaret ekle
+    // 6. Sipariş açıklamasına işaret ve uyarıları ekle
+    let siparisNotu = (siparis.siparisNotu || '') + ' [STOK DÜŞÜLDÜ]';
+
+    if (uyarilar.length > 0) {
+        siparisNotu += ` [UYARILAR: ${uyarilar.length} ürün reçetesi eksik]`;
+        console.warn(`⚠️ ${uyarilar.length} ürün için reçete bulunamadı:`, uyarilar);
+    }
+
     await tx.siparis.update({
         where: { id: siparisId },
-        data: { siparisNotu: (siparis.siparisNotu || '') + ' [STOK DÜŞÜLDÜ]' }
+        data: {
+            siparisNotu: siparisNotu
+        }
     });
+
+    console.log(`✅ Sipariş ${siparisId} için stok düşümü tamamlandı. ${stokHareketleri.length} farklı malzeme düşüldü.`);
+
+    return {
+        stokHareketleri,
+        uyarilar,
+        toplamDusulenMalzeme: stokHareketleri.length,
+        toplamUyari: uyarilar.length
+    };
 }
 
 export default async function handler(req, res) {
@@ -125,7 +221,7 @@ export default async function handler(req, res) {
                             urun: { select: { id: true, ad: true } },
                             ambalaj: { select: { id: true, ad: true } },
                             kutu: { select: { id: true, ad: true } },
-                            tepsiTava: { select: { id: true, ad: true, fiyat: true } } // Tepsi fiyatını da al
+                            tepsiTava: { select: { id: true, ad: true } } // Fiyat alanı yok
                         }
                     }
                 }
@@ -264,19 +360,24 @@ export default async function handler(req, res) {
                     console.log(`Sipariş ${id} hazırlanma durumu güncelleniyor: ${hazirlanmaDurumu}`);
                     // Schema'da hazirlanmaDurumu yok, durum enum'u kullan
                     updateDataSiparis.durum = "HAZIRLANDI"; // Hazırlandı durumuna çek
-                    // Stoktan düşüm (geçici olarak devre dışı - modeller eksik olabilir)
-                    try {
-                        await dusStokFromRecete(tx, id);
-                    } catch (stockError) {
-                        console.warn(`Stok düşümü yapılamadı (${id}):`, stockError.message);
-                        // Stok hatası varsa da devam et, sadece durum güncellemesi yap
-                    }
+
+                    // ⚡ OTOMATIK STOK DÜŞÜMÜ - Reçete bazında
+                    console.log(`📦 Sipariş ${id} için otomatik stok düşümü başlatılıyor...`);
+                    const stokSonucu = await dusStokFromRecete(tx, id);
+                    console.log(`✅ Stok düşümü tamamlandı. ${stokSonucu.toplamDusulenMalzeme} malzeme düşüldü, ${stokSonucu.toplamUyari} uyarı.`);
+
+                    // Stok uyarılarını geçici olarak sakla (response için)
+                    updateDataSiparis._stokUyarilari = stokSonucu.uyarilar || [];
                 }
                 if (isExtraChargesUpdate) {
                     console.log(`Sipariş ${id} kargo/diğer ücret güncelleniyor...`);
                     if (typeof kargoUcreti === 'number' && kargoUcreti >= 0) updateDataSiparis.kargoUcreti = kargoUcreti;
                     if (typeof digerHizmetTutari === 'number' && digerHizmetTutari >= 0) updateDataSiparis.digerHizmetTutari = digerHizmetTutari;
                 }
+
+                // Stok uyarılarını geçici olarak sakla (Prisma update'e girmemesi için)
+                const stokUyarilari = updateDataSiparis._stokUyarilari || [];
+                delete updateDataSiparis._stokUyarilari; // Prisma update'ten çıkar
 
                 // Ana siparişi tek seferde güncelle (eğer güncellenecek alan varsa)
                 if (Object.keys(updateDataSiparis).length > 1) { // updatedAt dışında değişiklik varsa
@@ -292,6 +393,11 @@ export default async function handler(req, res) {
                     // Sadece onaylama veya ekstra ücret durumu (yukarıda handle edildi)
                     // Bu bloğa normalde girilmemeli, ama güvenlik için
                     updatedSiparisResult = await tx.siparis.findUnique({ where: { id }, include: { kalemler: true, odemeler: true } });
+                }
+
+                // Stok uyarılarını response'a ekle
+                if (stokUyarilari.length > 0) {
+                    updatedSiparisResult.stokUyarilari = stokUyarilari;
                 }
 
 

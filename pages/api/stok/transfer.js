@@ -17,49 +17,28 @@ export default async function handler(req, res) {
         // }
 
         try {
-            const { kaynakStokId, hedefStokId, miktarGram, aciklama } = req.body;
-            if (!kaynakStokId || !hedefStokId || !miktarGram || miktarGram <= 0) {
-                return res.status(400).json({ message: 'kaynakStokId, hedefStokId, miktarGram > 0 zorunludur.' });
+            const { kaynakSubeId, hedefSubeId, materialId, urunId, miktar, birim, aciklama } = req.body;
+            if (!miktar || miktar <= 0) {
+                return res.status(400).json({ message: 'miktar > 0 zorunludur.' });
             }
-            if (kaynakStokId === hedefStokId) {
-                return res.status(400).json({ message: 'Kaynak ve hedef stok aynı olamaz.' });
-            }
-            const [kaynak, hedef] = await Promise.all([
-                prisma.stok.findUnique({ where: { id: kaynakStokId } }),
-                prisma.stok.findUnique({ where: { id: hedefStokId } })
-            ]);
-            if (!kaynak || !hedef) return res.status(404).json({ message: 'Kaynak veya hedef stok bulunamadı.' });
-            // Aynı hammadde veya aynı yarı mamul olmalı
-            if (
-                (kaynak.hammaddeId && kaynak.hammaddeId !== hedef.hammaddeId) ||
-                (kaynak.yariMamulId && kaynak.yariMamulId !== hedef.yariMamulId)
-            ) {
-                return res.status(400).json({ message: 'Kaynak ve hedef stok aynı ürün olmalı.' });
-            }
-            if (kaynak.miktarGram < miktarGram) {
-                return res.status(400).json({ message: 'Kaynak stokta yeterli miktar yok.' });
+            if (!materialId && !urunId) {
+                return res.status(400).json({ message: 'materialId veya urunId zorunludur.' });
             }
 
             // Transfer işlemini gerçekleştir
-            await prisma.$transaction([
-                prisma.stok.update({
-                    where: { id: kaynakStokId },
-                    data: { miktarGram: { decrement: miktarGram } }
-                }),
-                prisma.stok.update({
-                    where: { id: hedefStokId },
-                    data: { miktarGram: { increment: miktarGram } }
-                }),
-                prisma.stokTransfer.create({
+            const transfer = await prisma.stokTransfer.create({
                     data: {
-                        kaynakStokId,
-                        hedefStokId,
-                        miktarGram,
+                    kaynakSubeId,
+                    hedefSubeId,
+                    materialId,
+                    urunId,
+                    miktar,
+                    birim: birim || 'KG',
                         aciklama,
-                        createdBy: 1 // Geçici olarak admin user ID
+                    createdBy: 1, // Geçici olarak admin user ID
+                    durum: 'BEKLIYOR'
                     }
-                })
-            ]);
+            });
 
             return res.status(200).json({ message: 'Transfer başarılı.' });
         } catch (error) {
@@ -73,8 +52,11 @@ export default async function handler(req, res) {
                 orderBy: { createdAt: 'desc' },
                 take: 100,
                 include: {
-                    kaynakStok: { include: { hammadde: true, yariMamul: true, operasyonBirimi: true } },
-                    hedefStok: { include: { hammadde: true, yariMamul: true, operasyonBirimi: true } }
+                    kaynakSube: { select: { ad: true, kod: true } },
+                    hedefSube: { select: { ad: true, kod: true } },
+                    urun: { select: { ad: true, kod: true } },
+                    material: { select: { ad: true, kod: true, tipi: true } },
+                    olusturan: { select: { ad: true, email: true } }
                 }
             });
             return res.status(200).json(transfers);
