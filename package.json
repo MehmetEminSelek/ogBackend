@@ -40,6 +40,7 @@
     "dotenv": "^16.5.0",
     "express-rate-limit": "^7.1.5",
     "formidable": "^3.5.4",
+    "git": "^0.1.5",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.1",
